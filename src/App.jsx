@@ -24,12 +24,7 @@ export default function App() {
 
   // Handlers
   const handleCheckoutRequest = (formData) => {
-    if (formData.orderType === 'telefono' && !formData.customerName.trim()) {
-      alert("Para pedidos por teléfono, el nombre es obligatorio.");
-      return;
-    }
-    
-    // Snapshot de datos
+    // Snapshot de datos para el ticket
     setPendingOrderData(formData);
     setTicketItems([...cart]);
     setTempQrId(Date.now());
@@ -37,40 +32,34 @@ export default function App() {
   };
 
   const handleConfirmOrder = async () => {
-  try {
-    const totalToSave = ticketItems.reduce(
-      (t, i) => t + i.price * i.qty,
-      0
-    );
+    try {
+      // Recalcular total desde el snapshot para seguridad
+      const totalToSave = ticketItems.reduce(
+        (t, i) => t + i.price * i.qty,
+        0
+      );
 
-    const orderData = {
-      type: pendingOrderData.orderType,
-      customerName:
-        pendingOrderData.customerName.trim() ||
-        (pendingOrderData.orderType === 'local'
-          ? 'Cliente Local'
-          : 'Anónimo'),
-      notes: pendingOrderData.orderNotes,
-      subtotal: totalToSave,
-      total: totalToSave,
-      status: 'nuevo'
-    };
+      // Construir objeto final mezclando datos de form y totales
+      const orderData = {
+        ...pendingOrderData, // trae type, customerName, phone, address, notes, deliveryNotes
+        subtotal: totalToSave,
+        total: totalToSave
+      };
 
-    const { number, id } = await saveOrder({
-      orderData,
-      cartItems: ticketItems
-    });
+      const { number, id } = await saveOrder({ 
+        orderData, 
+        cartItems: ticketItems 
+      });
 
-    setCurrentOrderNumber(number);
-    setCurrentOrderId(id);
-
-    alert(`¡Pedido #${number} enviado a cocina!`);
-    clearCart();
-  } catch (error) {
-    console.error(error);
-    alert("Error al guardar el pedido.");
-  }
-};
+      setCurrentOrderNumber(number);
+      setCurrentOrderId(id);
+      
+      // Limpiamos el carrito real, pero el ticket sigue mostrando el snapshot
+      clearCart();
+    } catch (error) {
+      alert("Error al guardar el pedido.");
+    }
+  };
 
   const handleCloseTicket = () => {
     setShowTicket(false);
@@ -82,10 +71,10 @@ export default function App() {
       setTempQrId(null);
       setPendingOrderData({});
     } else {
-      // Si cerró sin confirmar (botón volver), solo cerramos modal
+      // Si cerró sin confirmar (botón volver), solo cerramos modal, mantenemos carrito
       setTicketItems([]);
       setTempQrId(null);
-       setPendingOrderData({});
+      setPendingOrderData({});
     }
   };
 
@@ -101,12 +90,10 @@ export default function App() {
         cartTotal={cartTotal}
         updateQty={updateQty}
         removeFromCart={removeFromCart}
-        onAddToCart={addToCart} // Para el upsell
         onCheckout={handleCheckoutRequest}
-        showTicket={showTicket}
-        menuItems={menuItems}
         lastOrderNumber={currentOrderNumber}
         loadingOrder={loading}
+        // Props no usadas removidas (menuItems ya no se usa en cart panel sin IA)
       />
 
       <TicketModal 

@@ -1,50 +1,55 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, User, Phone, FileText, Sparkles, Loader, X } from 'lucide-react';
-import { standardizeNotesService, suggestUpsellService } from '../services/gemini';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, User, Phone, MapPin, FileText, Utensils } from 'lucide-react';
 
 export default function CartPanel({ 
   cart, 
   cartTotal, 
   updateQty, 
   removeFromCart, 
-  onAddToCart, // Para el upsell
   onCheckout,
-  showTicket,
-  menuItems,
   lastOrderNumber,
   loadingOrder
 }) {
-  // Estados locales del formulario
-  const [orderType, setOrderType] = useState('local');
-  const [customerName, setCustomerName] = useState('');
-  const [orderNotes, setOrderNotes] = useState('');
+  // Estados del formulario
+  const [orderType, setOrderType] = useState('local'); // 'local' | 'telefono'
   
-  // Estados locales de IA
-  const [aiUpsellLoading, setAiUpsellLoading] = useState(false);
-  const [aiNotesLoading, setAiNotesLoading] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState(null);
+  // Campos de datos
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [orderNotes, setOrderNotes] = useState(''); // Para local: opcional. Para teléfono: deliveryNotes opcional.
 
-  // Wrappers para llamar al servicio de IA
-  const handleStandardizeNotes = async () => {
-    setAiNotesLoading(true);
-    const result = await standardizeNotesService(orderNotes);
-    if (result) setOrderNotes(result);
-    setAiNotesLoading(false);
-  };
+  // Wrapper para checkout con validación estricta
+  const handleValidationAndCheckout = () => {
+    if (cart.length === 0) return;
 
-  const handleSuggestUpsell = async () => {
-    setAiUpsellLoading(true);
-    const suggestion = await suggestUpsellService(cart, menuItems);
-    if (suggestion) {
-      const product = menuItems.find(i => i.id === suggestion.recommendedItemId);
-      if (product) setAiSuggestion({ ...product, reason: suggestion.reason });
+    // Validación Pedido Telefónico
+    if (orderType === 'telefono') {
+      if (!customerName.trim()) return alert("Para envíos, el NOMBRE es obligatorio.");
+      if (!customerPhone.trim()) return alert("Para envíos, el TELÉFONO es obligatorio.");
+      if (!customerAddress.trim()) return alert("Para envíos, la DIRECCIÓN es obligatoria.");
     }
-    setAiUpsellLoading(false);
-  };
 
-  // Wrapper para checkout que envía los datos del form
-  const triggerCheckout = () => {
-    onCheckout({ orderType, customerName, orderNotes });
+    // Preparar objeto de datos limpio
+    const checkoutData = {
+      orderType,
+      customerName: customerName.trim() || (orderType === 'local' ? 'Cliente Local' : 'Anónimo'),
+      // Para local enviamos null en estos campos si están vacíos
+      phone: orderType === 'telefono' ? customerPhone : null,
+      address: orderType === 'telefono' ? customerAddress : null,
+      // Notas unificadas: en local es nota cocina, en telefono es nota entrega
+      notes: orderNotes.trim(), 
+      deliveryNotes: orderType === 'telefono' ? orderNotes.trim() : null 
+    };
+
+    onCheckout(checkoutData);
+    
+    // Limpiar campos después de enviar (opcional, depende de la UX deseada)
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setOrderNotes('');
+    setOrderType('local');
   };
 
   return (
@@ -55,60 +60,29 @@ export default function CartPanel({
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
             <ShoppingCart className="text-amber-600" />
-            Pedido
+            Pedido Actual
           </h2>
           {lastOrderNumber && <p className="text-xs text-green-600 font-bold mt-1">Último: #{lastOrderNumber}</p>}
         </div>
-        
-        {/* Botón Upsell */}
-        {cart.length > 0 && menuItems.length > 0 && !aiSuggestion && (
-          <button 
-            onClick={handleSuggestUpsell}
-            disabled={aiUpsellLoading}
-            className="text-xs flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all animate-pulse"
-          >
-            {aiUpsellLoading ? <Loader size={12} className="animate-spin"/> : <Sparkles size={12} />}
-            Sugerir Extra
-          </button>
-        )}
+        <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded">
+          {cart.length} ítems
+        </span>
       </div>
-
-      {/* Sugerencia AI */}
-      {aiSuggestion && (
-        <div className="bg-indigo-50 p-3 border-b border-indigo-100 animate-fadeIn">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white rounded-lg border border-indigo-100"><Sparkles size={16} className="text-indigo-500" /></div>
-            <div className="flex-1">
-              <p className="text-xs font-bold text-indigo-800 uppercase tracking-wide">Gemini Sugiere:</p>
-              <p className="text-sm font-medium text-slate-800">{aiSuggestion.name}</p>
-              <p className="text-xs text-slate-500 italic mb-2">"{aiSuggestion.reason}"</p>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => { onAddToCart(aiSuggestion); setAiSuggestion(null); }}
-                  className="flex-1 bg-indigo-600 text-white text-xs font-bold py-1.5 rounded hover:bg-indigo-700 transition"
-                >
-                  Agregar (+${aiSuggestion.price})
-                </button>
-                <button onClick={() => setAiSuggestion(null)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Lista de Items */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {cart.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4">
             <ShoppingCart size={48} className="opacity-20" />
-            <p>Carrito vacío</p>
+            <p>El carrito está vacío</p>
           </div>
         ) : (
-          cart.map(item => (
-            <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+          cart.map((item, index) => (
+            // Usamos index como key fallback porque podemos tener el mismo producto con diferentes toppings
+            <div key={`${item.id}-${index}`} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
               <div className="flex-1">
-                <h4 className="font-medium text-sm text-slate-900">{item.name}</h4>
-                <p className="text-xs text-slate-500">${item.price.toFixed(2)} c/u</p>
+                <h4 className="font-medium text-sm text-slate-900 leading-tight">{item.name}</h4>
+                <p className="text-xs text-slate-500 font-mono mt-1">${item.price.toFixed(2)} c/u</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center bg-slate-100 rounded-lg">
@@ -123,39 +97,83 @@ export default function CartPanel({
         )}
       </div>
 
-      {/* Formulario */}
+      {/* Formulario de Pedido */}
       <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-        <div className="flex bg-white rounded-lg border border-slate-200 p-1">
-          <button onClick={() => setOrderType('local')} className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${orderType === 'local' ? 'bg-amber-100 text-amber-800' : 'text-slate-500'}`}><User size={14} /> Local</button>
-          <button onClick={() => setOrderType('telefono')} className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${orderType === 'telefono' ? 'bg-blue-100 text-blue-800' : 'text-slate-500'}`}><Phone size={14} /> Teléfono</button>
+        
+        {/* Switch Tipo de Pedido */}
+        <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
+          <button 
+            onClick={() => setOrderType('local')} 
+            className={`flex-1 py-2 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${orderType === 'local' ? 'bg-amber-100 text-amber-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Utensils size={16} /> Local
+          </button>
+          <button 
+            onClick={() => setOrderType('telefono')} 
+            className={`flex-1 py-2 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-2 ${orderType === 'telefono' ? 'bg-blue-100 text-blue-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Phone size={16} /> Teléfono
+          </button>
         </div>
 
-        <input 
-          type="text"
-          placeholder="Nombre del Cliente"
-          className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 outline-none ${orderType === 'telefono' && !customerName ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-          value={customerName}
-          onChange={(e) => setCustomerName(e.target.value)}
-        />
+        {/* Campos Dinámicos */}
+        <div className="space-y-2 animate-fadeIn">
+          
+          {/* Nombre: Opcional en local, Obligatorio en teléfono */}
+          <div className="relative">
+            <User className={`absolute left-3 top-2.5 size={16} ${orderType === 'telefono' && !customerName ? 'text-red-400' : 'text-slate-400'}`} />
+            <input 
+              type="text"
+              placeholder={orderType === 'telefono' ? "Nombre Cliente (Requerido)" : "Nombre Cliente (Opcional)"}
+              className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors ${
+                orderType === 'telefono' && !customerName ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'
+              }`}
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+            />
+          </div>
 
-        <div className="relative group">
-          <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
-          <textarea 
-            placeholder="Notas (ej: sin cebolla...)"
-            className="w-full pl-9 pr-8 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none h-16 resize-none bg-white transition-colors"
-            value={orderNotes}
-            onChange={(e) => setOrderNotes(e.target.value)}
-          />
-          {orderNotes.length > 3 && (
-            <button 
-              onClick={handleStandardizeNotes}
-              disabled={aiNotesLoading}
-              title="Estandarizar nota con IA"
-              className="absolute right-2 top-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 p-1 rounded transition-colors"
-            >
-              {aiNotesLoading ? <Loader size={14} className="animate-spin"/> : <Sparkles size={14} />}
-            </button>
+          {/* Campos EXCLUSIVOS para Teléfono */}
+          {orderType === 'telefono' && (
+            <>
+              <div className="relative animate-fadeIn">
+                <Phone className={`absolute left-3 top-2.5 size={16} ${!customerPhone ? 'text-red-400' : 'text-slate-400'}`} />
+                <input 
+                  type="tel"
+                  placeholder="Número de Teléfono (Requerido)"
+                  className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    !customerPhone ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'
+                  }`}
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                />
+              </div>
+
+              <div className="relative animate-fadeIn">
+                <MapPin className={`absolute left-3 top-2.5 size={16} ${!customerAddress ? 'text-red-400' : 'text-slate-400'}`} />
+                <textarea 
+                  placeholder="Dirección de Entrega (Requerido)"
+                  className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-16 resize-none transition-colors ${
+                    !customerAddress ? 'border-red-300 bg-red-50' : 'border-slate-300 bg-white'
+                  }`}
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                />
+              </div>
+            </>
           )}
+
+          {/* Notas: Cocina (Local) o Referencia (Teléfono) */}
+          <div className="relative">
+            <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
+            <textarea 
+              placeholder={orderType === 'telefono' ? "Referencias (Casa verde, portón negro...)" : "Notas para cocina (Sin cebolla...)"}
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 h-14 resize-none bg-white"
+              value={orderNotes}
+              onChange={(e) => setOrderNotes(e.target.value)}
+            />
+          </div>
+
         </div>
       </div>
 
@@ -167,16 +185,16 @@ export default function CartPanel({
         </div>
 
         <button
-          onClick={triggerCheckout}
-          disabled={cart.length === 0 || loadingOrder || showTicket}
+          onClick={handleValidationAndCheckout}
+          disabled={cart.length === 0 || loadingOrder}
           className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all transform active:scale-95 flex items-center justify-center gap-2 ${
             cart.length === 0 || loadingOrder
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-              : 'bg-gradient-to-r from-red-600 to-red-700 text-white hover:from-red-500 hover:to-red-600 shadow-red-200'
+              : 'bg-gradient-to-r from-green-600 to-green-700 text-white hover:from-green-500 hover:to-green-600 shadow-green-200'
           }`}
         >
-          <Utensils size={20} />
-          {loadingOrder ? 'Procesando...' : 'Cobrar'}
+          <Receipt size={20} />
+          {loadingOrder ? 'Procesando...' : 'Confirmar Pedido'}
         </button>
       </div>
     </div>
