@@ -1,30 +1,53 @@
+// src/components/MenuPanel.jsx
 import React, { useState, useMemo } from "react";
-import { Search, Flame, ChefHat, Utensils, Coffee } from "lucide-react"; // Importación unificada
+import { Search } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
-// Mapeo explícito de componentes
-const ICONS = {
-  Flame: Flame,
-  ChefHat: ChefHat,
-  Utensils: Utensils,
-  Coffee: Coffee
-};
-
-export default function MenuPanel({ menuItems, onAddToCart }) {
+export default function MenuPanel({ menuItems, onProductClick }) {
   const [activeCategory, setActiveCategory] = useState("Pizzas");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Subfiltros
+  const [drinkFilter, setDrinkFilter] = useState("Fría"); // Fría | Caliente
+  const [burgerFilter, setBurgerFilter] = useState("Individual"); // Individual | Combo
+
   const filteredProducts = useMemo(() => {
-    let products = menuItems.filter(
-      (item) => item.category === activeCategory
+    let products = menuItems;
+
+    // Filtro por categoría principal
+    products = products.filter(
+      (item) => item.mainCategory === activeCategory
     );
-    if (searchQuery) {
-      products = menuItems.filter((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+    // Subfiltros por categoría
+    if (activeCategory === "Bebidas") {
+      products = products.filter(
+        (item) => item.drinkTemperature === drinkFilter
       );
     }
+
+    if (activeCategory === "Hamburguesas") {
+      products = products.filter(
+        (item) => item.burgerType === burgerFilter
+      );
+    }
+
+    // Buscador
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      products = products.filter((p) =>
+        p.name.toLowerCase().includes(q)
+      );
+    }
+
     return products;
-  }, [activeCategory, searchQuery, menuItems]);
+  }, [
+    menuItems,
+    activeCategory,
+    searchQuery,
+    drinkFilter,
+    burgerFilter
+  ]);
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -35,7 +58,7 @@ export default function MenuPanel({ menuItems, onAddToCart }) {
             Pizza Brava <span className="text-amber-400">POS</span>
           </h1>
           <p className="text-xs text-amber-200 opacity-80">
-            Recepción con Gemini AI ✨
+            Recepción
           </p>
         </div>
 
@@ -56,54 +79,94 @@ export default function MenuPanel({ menuItems, onAddToCart }) {
 
       {/* Tabs Categorías */}
       <div className="flex bg-white shadow-sm overflow-x-auto">
-        {CATEGORIES.map((cat) => {
-          // Fallback seguro si el icono no existe en el mapa
-          const IconComponent = ICONS[cat.icon] || Search; 
-
-          return (
-            <button
-              key={cat.id}
-              onClick={() => {
-                setActiveCategory(cat.id);
-                setSearchQuery("");
-              }}
-              className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors border-b-4 ${
-                activeCategory === cat.id && !searchQuery
-                  ? "border-amber-600 text-amber-900 bg-amber-50"
-                  : "border-transparent text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              <IconComponent size={20} />
-              {cat.label}
-            </button>
-          );
-        })}
+        {CATEGORIES.map((cat) => (
+          <button
+            key={cat.id}
+            onClick={() => {
+              setActiveCategory(cat.id);
+              setSearchQuery("");
+            }}
+            className={`flex items-center gap-2 px-6 py-4 font-medium transition-colors border-b-4 ${
+              activeCategory === cat.id
+                ? "border-amber-600 text-amber-900 bg-amber-50"
+                : "border-transparent text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
       </div>
+
+     <div className="px-4 pt-4 pb-3 bg-slate-50 border-b border-slate-200 flex justify-center">
+  {/* Submenú para Bebidas */}
+  {activeCategory === "Bebidas" && (
+    <div className="flex gap-4 justify-center">
+      {["Fría", "Caliente"].map((t) => (
+        <button
+          key={t}
+          onClick={() => setDrinkFilter(t)}
+          className={`px-6 py-3 rounded-2xl text-sm font-semibold border shadow-sm transition-all ${
+            drinkFilter === t
+              ? "bg-amber-200 border-amber-500 text-amber-900 scale-105"
+              : "bg-white border-slate-300 text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          {t}s
+        </button>
+      ))}
+    </div>
+  )}
+
+  {/* Submenú para Hamburguesas */}
+  {activeCategory === "Hamburguesas" && (
+    <div className="flex gap-4 justify-center">
+      {["Individuale", "Combo"].map((t) => (
+        <button
+          key={t}
+          onClick={() => setBurgerFilter(t)}
+          className={`px-6 py-3 rounded-2xl text-sm font-semibold border shadow-sm transition-all ${
+            burgerFilter === t
+              ? "bg-amber-200 border-amber-500 text-amber-900 scale-105"
+              : "bg-white border-slate-300 text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          {t}s
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+
 
       {/* Grid Productos */}
       <div className="flex-1 overflow-y-auto p-6 bg-slate-100">
         {menuItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
             <p>Cargando menú...</p>
-            <p className="text-xs mt-2">Conectando con Firestore...</p>
+            <p className="text-xs mt-2">
+              Conectando con Firestore...
+            </p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-slate-400">
+            <p>Sin productos en esta categoría.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {filteredProducts.map((product) => (
               <button
                 key={product.id}
-                onClick={() => onAddToCart(product)}
+                onClick={() => onProductClick(product)}
                 className="bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-200 flex flex-col items-start text-left group active:scale-95"
               >
                 <div className="w-full flex justify-between items-start mb-2">
                   <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
-                    {product.station}
+                    {product.station || "cocina"}
                   </span>
                   <span className="font-bold text-lg text-slate-900">
                     ${product.price.toFixed(2)}
                   </span>
                 </div>
-
                 <h3 className="font-semibold text-slate-700 group-hover:text-amber-700 leading-tight">
                   {product.name}
                 </h3>

@@ -1,6 +1,10 @@
 export const CATEGORIES = [
-  { id: "Pizzas", icon: "Flame", label: "Pizzas" },
-  { id: "Asados", icon: "ChefHat", label: "Asados" },
-  { id: "Entradas", icon: "Utensils", label: "Entradas" },
-  { id: "Bebidas", icon: "Coffee", label: "Bebidas" },
+  { id: "Entradas", label: "Entradas" },
+  { id: "Bebidas", label: "Bebidas" },
+  { id: "Pizzas", label: "Pizzas" },
+  { id: "Complementos", label: "Complementos" },
+  { id: "Birrias", label: "Birrias" },
+  { id: "Hamburguesas", label: "Hamburguesas" },
+  { id: "Platos", label: "Platos" },
+  { id: "Combos", label: "Combos" }
 ];
