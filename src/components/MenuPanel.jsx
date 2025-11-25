@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, Flame, ChefHat, Utensils, Coffee } from "lucide-react"; // Importación unificada
 import { CATEGORIES } from "../constants/data";
 
-// Importar iconos
-import { Flame, ChefHat, Utensils, Coffee } from "lucide-react";
-
-// Mapeo de strings → componentes reales
-const ICONS = { Flame, ChefHat, Utensils, Coffee };
+// Mapeo explícito de componentes
+const ICONS = {
+  Flame: Flame,
+  ChefHat: ChefHat,
+  Utensils: Utensils,
+  Coffee: Coffee
+};
 
 export default function MenuPanel({ menuItems, onAddToCart }) {
   const [activeCategory, setActiveCategory] = useState("Pizzas");
@@ -55,7 +57,8 @@ export default function MenuPanel({ menuItems, onAddToCart }) {
       {/* Tabs Categorías */}
       <div className="flex bg-white shadow-sm overflow-x-auto">
         {CATEGORIES.map((cat) => {
-          const Icon = ICONS[cat.icon]; // <- convertir string en componente real
+          // Fallback seguro si el icono no existe en el mapa
+          const IconComponent = ICONS[cat.icon] || Search; 
 
           return (
             <button
@@ -70,7 +73,7 @@ export default function MenuPanel({ menuItems, onAddToCart }) {
                   : "border-transparent text-slate-500 hover:bg-slate-50"
               }`}
             >
-              <Icon size={20} />
+              <IconComponent size={20} />
               {cat.label}
             </button>
           );

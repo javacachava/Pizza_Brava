@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Trash2, Plus, Minus, Receipt, User, Phone, FileText, Sparkles, Loader, X } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Receipt, User, Phone, FileText, Sparkles, Loader, X, Utensils } from 'lucide-react';
 import { standardizeNotesService, suggestUpsellService } from '../services/gemini';
 
 export default function CartPanel({ 
