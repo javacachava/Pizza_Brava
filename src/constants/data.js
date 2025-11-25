@@ -5,6 +5,5 @@ export const CATEGORIES = [
   { id: "Complementos", label: "Complementos" },
   { id: "Birrias", label: "Birrias" },
   { id: "Hamburguesas", label: "Hamburguesas" },
-  { id: "Platos", label: "Platos" },
-  { id: "Combos", label: "Combos" }
+  { id: "Platos", label: "Platos Fuertes" },
 ];

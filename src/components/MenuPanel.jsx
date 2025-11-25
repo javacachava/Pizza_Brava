@@ -152,7 +152,8 @@ export default function MenuPanel({ menuItems, onProductClick }) {
             <p>Sin productos en esta categoría.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="bg-amber-900 text-white p-4 shadow-md flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+
             {filteredProducts.map((product) => (
               <button
                 key={product.id}

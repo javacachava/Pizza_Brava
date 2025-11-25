@@ -19,22 +19,21 @@ export default function App() {
   } = useCart();
   const { saveOrder, loading } = useOrders();
 
+  // Ticket / orden
   const [showTicket, setShowTicket] = useState(false);
   const [ticketItems, setTicketItems] = useState([]);
   const [tempQrId, setTempQrId] = useState(null);
-  const [currentOrderNumber, setCurrentOrderNumber] =
-    useState(null);
+  const [currentOrderNumber, setCurrentOrderNumber] = useState(null);
   const [currentOrderId, setCurrentOrderId] = useState(null);
   const [pendingOrderData, setPendingOrderData] = useState({});
 
-  // Modal de opciones de pizza
-  const [showProductModal, setShowProductModal] =
-    useState(false);
-  const [selectedBaseProduct, setSelectedBaseProduct] =
-    useState(null);
+  // Modal de configuración de producto (pizzas, etc.)
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [selectedBaseProduct, setSelectedBaseProduct] = useState(null);
 
+  // Lógica: qué pasa cuando tocan un producto en el menú
   const handleProductClick = (product) => {
-    // Si es pizza -> modal
+    // Regla simple: si es pizza, abre modal; si no, directo al carrito.
     if (product.mainCategory === "Pizzas") {
       setSelectedBaseProduct(product);
       setShowProductModal(true);
@@ -43,22 +42,26 @@ export default function App() {
     }
   };
 
-  const handleConfirmConfiguredProduct = (item) => {
-    addToCart(item);
+  // Cuando el usuario confirma la pizza configurada en el modal
+  const handleConfirmConfiguredProduct = (configuredItem) => {
+    addToCart(configuredItem);
+    setShowProductModal(false);
+    setSelectedBaseProduct(null);
   };
 
+  // Paso 1: recibir datos del formulario del carrito y mostrar ticket
   const handleCheckoutRequest = (formData) => {
     // Validaciones fuertes para Teléfono
     if (formData.orderType === "telefono") {
-      if (!formData.customerName.trim()) {
+      if (!formData.customerName?.trim()) {
         alert("Nombre de cliente es obligatorio.");
         return;
       }
-      if (!formData.customerPhone.trim()) {
+      if (!formData.customerPhone?.trim()) {
         alert("Teléfono de contacto es obligatorio.");
         return;
       }
-      if (!formData.customerAddress.trim()) {
+      if (!formData.customerAddress?.trim()) {
         alert("Dirección de entrega es obligatoria.");
         return;
       }
@@ -70,6 +73,7 @@ export default function App() {
     setShowTicket(true);
   };
 
+  // Paso 2: confirmar ticket y guardar en Firestore
   const handleConfirmOrder = async () => {
     try {
       const totalToSave = ticketItems.reduce(
@@ -85,8 +89,7 @@ export default function App() {
             ? "Cliente Local"
             : "Anónimo"),
         customerPhone: pendingOrderData.customerPhone || "",
-        customerAddress:
-          pendingOrderData.customerAddress || "",
+        customerAddress: pendingOrderData.customerAddress || "",
         orderNotes: pendingOrderData.orderNotes || "",
         subtotal: totalToSave,
         total: totalToSave,
@@ -108,16 +111,19 @@ export default function App() {
     }
   };
 
+  // Cerrar ticket (después de confirmar o al volver)
   const handleCloseTicket = () => {
     setShowTicket(false);
 
     if (currentOrderId) {
+      // Ya se guardó la orden
       setCurrentOrderId(null);
       setCurrentOrderNumber(null);
       setTicketItems([]);
       setTempQrId(null);
       setPendingOrderData({});
     } else {
+      // Solo estaba viendo el ticket sin confirmar
       setTicketItems([]);
       setTempQrId(null);
       setPendingOrderData({});
@@ -125,23 +131,32 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
-      <MenuPanel
-        menuItems={menuItems}
-        onProductClick={handleProductClick}
-      />
+    <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
+      {/* IZQUIERDA / ARRIBA: MENÚ */}
+      <div className="flex-1 min-h-0">
+        <MenuPanel
+          menuItems={menuItems}
+          onProductClick={handleProductClick} // <-- AQUÍ va, NO onAddToCart
+        />
+      </div>
 
-      <CartPanel
-        cart={cart}
-        cartTotal={cartTotal}
-        updateQty={updateQty}
-        removeFromCart={removeFromCart}
-        onCheckout={handleCheckoutRequest}
-        showTicket={showTicket}
-        lastOrderNumber={currentOrderNumber}
-        loadingOrder={loading}
-      />
+      {/* DERECHA / ABAJO: CARRITO */}
+      <div className="w-full md:w-auto md:border-l md:border-slate-200">
+        <CartPanel
+          cart={cart}
+          cartTotal={cartTotal}
+          updateQty={updateQty}
+          removeFromCart={removeFromCart}
+          onAddToCart={addToCart}
+          onCheckout={handleCheckoutRequest}
+          showTicket={showTicket}
+          menuItems={menuItems}
+          lastOrderNumber={currentOrderNumber}
+          loadingOrder={loading}
+        />
+      </div>
 
+      {/* MODAL TICKET */}
       <TicketModal
         isOpen={showTicket}
         onClose={handleCloseTicket}
@@ -154,10 +169,14 @@ export default function App() {
         tempQrId={tempQrId}
       />
 
+      {/* MODAL OPCIONES DE PRODUCTO (PIZZAS) */}
       <ProductOptionsModal
         isOpen={showProductModal}
-        onClose={() => setShowProductModal(false)}
-        baseProduct={selectedBaseProduct}
+        product={selectedBaseProduct}
+        onClose={() => {
+          setShowProductModal(false);
+          setSelectedBaseProduct(null);
+        }}
         onConfirm={handleConfirmConfiguredProduct}
       />
     </div>

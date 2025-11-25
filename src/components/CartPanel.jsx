@@ -41,7 +41,7 @@ export default function CartPanel({
   };
 
   return (
-    <div className="w-96 bg-white shadow-2xl flex flex-col h-full border-l border-slate-200 z-10 relative">
+    <div className="w-full md:w-96 bg-white shadow-2xl flex flex-col h-full md:h-screen border-t md:border-t-0 md:border-l border-slate-200 z-10 relative">
       {/* Header */}
       <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
         <div>
