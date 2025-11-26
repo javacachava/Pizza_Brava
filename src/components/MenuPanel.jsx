@@ -203,4 +203,4 @@ export default function MenuPanel({ menuItems, onProductClick }) {
       </div>
     </div>
   );
-}s
+}
