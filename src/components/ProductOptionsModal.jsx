@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, CheckSquare, Square, ChefHat } from "lucide-react";
 import { PIZZA_INGREDIENTS, PIZZA_RULES } from "../constants/productConfig";
 
@@ -10,75 +10,73 @@ export default function ProductOptionsModal({
 }) {
   if (!isOpen || !product) return null;
 
-  // Detectar si es Clásica (requiere tamaño)
-  const isClassic = product.pizzaType === "Clasica";
+  // ¿Es una pizza clásica que requiere selección de tamaño?
+  // Asumimos que en DB tienes un campo 'pizzaType' === 'Clásica'
+  const isClassic = product.pizzaType === "Clásica" || product.name.toLowerCase().includes("clásica");
 
-  // Estado Tamaño (Solo para clásicas, defecto Personal)
   const [size, setSize] = useState("Personal");
-  
-  // Estado Ingredientes
   const [selectedIngredients, setSelectedIngredients] = useState([]);
 
-  // Reiniciar estados al abrir producto nuevo
+  // Reiniciar al abrir
   useEffect(() => {
     setSize("Personal");
     setSelectedIngredients([]);
   }, [product]);
 
-  // --- CALCULO DE PRECIO BASE SEGUN TAMAÑO ---
-  // Busca en el objeto 'prices' del producto, o usa lógica fallback
-  const currentBasePrice = useMemo(() => {
-    if (!isClassic) return product.price; // Especialidades precio fijo
-
-    if (product.prices && product.prices[size]) {
-      return product.prices[size];
-    }
-    // Fallback si no configuraste precios en DB:
-    // Personal = precio base, Grande = precio base + $5 (ejemplo)
-    return size === "Grande" ? product.price + 5 : product.price;
+  // Calcular precio base según tamaño seleccionado
+  const basePrice = useMemo(() => {
+    if (!isClassic) return product.price; // Si no es clásica (ej: especialidad), usa precio normal
+    return product.price + PIZZA_RULES.sizes[size].priceModifier;
   }, [product, size, isClassic]);
 
-  // --- MANEJO DE INGREDIENTES ---
+  // Calcular extras
+  const extraCount = Math.max(0, selectedIngredients.length - PIZZA_RULES.includedIngredients);
+  const extrasCost = extraCount * PIZZA_RULES.extraIngredientPrice;
+  const finalPrice = basePrice + extrasCost;
+
   const toggleIngredient = (ing) => {
-    setSelectedIngredients((prev) => {
-      if (prev.includes(ing)) return prev.filter((i) => i !== ing);
-      return [...prev, ing];
-    });
+    setSelectedIngredients((prev) =>
+      prev.includes(ing) ? prev.filter((i) => i !== ing) : [...prev, ing]
+    );
   };
 
-  const { included, extraPrice } = PIZZA_RULES;
-  
-  const extraCount = Math.max(0, selectedIngredients.length - included);
-  const finalPrice = currentBasePrice + (extraCount * extraPrice);
-
   const handleConfirm = () => {
-    // Validación: Clásicas requieren 2 ingredientes
-    if (isClassic && selectedIngredients.length < included) {
-      alert(`Por favor elige al menos ${included} ingredientes para tu pizza clásica.`);
-      return;
+    // Validación Estricta: 2 ingredientes OBLIGATORIOS para clásicas
+    if (isClassic) {
+        if (selectedIngredients.length < PIZZA_RULES.includedIngredients) {
+            alert(`La pizza clásica requiere seleccionar ${PIZZA_RULES.includedIngredients} ingredientes incluidos.`);
+            return;
+        }
     }
 
-    onConfirm({
+    // Crear el objeto del item para el carrito
+    const cartItem = {
       ...product,
-      name: isClassic ? `${product.name} (${size})` : product.name, // Modificar nombre para el ticket
+      // Generar un ID único para este item configurado para que no se agrupe con otros diferentes
+      cartItemId: `${product.id}-${Date.now()}`, 
       price: finalPrice,
-      selectedSize: isClassic ? size : "Único",
       ingredients: selectedIngredients,
-      isConfigured: true, // Bandera para el sistema
-    });
+      selectedSize: isClassic ? size : "Único",
+      name: isClassic 
+        ? `${product.name} (${size})` 
+        : product.name, // Nombre display en ticket
+      isConfigured: true
+    };
+
+    onConfirm(cartItem);
   };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
         {/* Header */}
-        <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+        <div className="bg-amber-900 text-white p-4 flex justify-between items-center">
           <div>
             <h3 className="font-bold text-lg flex items-center gap-2">
               <ChefHat size={18} className="text-amber-400"/> 
-              Configurar Pizza
+              Configurar {product.name}
             </h3>
-            <p className="text-xs text-slate-300">{product.name}</p>
           </div>
           <button onClick={onClose} className="hover:bg-white/10 p-1 rounded">
             <X size={20} />
@@ -87,45 +85,48 @@ export default function ProductOptionsModal({
 
         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-6">
           
-          {/* 1. SELECTOR DE TAMAÑO (Solo Clásicas) */}
+          {/* 1. Selector de Tamaño (Solo Clásicas) */}
           {isClassic && (
             <div className="space-y-2">
               <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-                1. Elige Tamaño
+                1. Tamaño
               </h4>
               <div className="flex gap-3">
-                {["Personal", "Grande"].map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSize(s)}
-                    className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all ${
-                      size === s
-                        ? "bg-amber-500 border-amber-600 text-white shadow-md scale-105"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+                {Object.keys(PIZZA_RULES.sizes).map((key) => {
+                    const info = PIZZA_RULES.sizes[key];
+                    return (
+                        <button
+                            key={key}
+                            onClick={() => setSize(key)}
+                            className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all ${
+                            size === key
+                                ? "bg-amber-600 border-amber-700 text-white shadow-md"
+                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                            }`}
+                        >
+                            {info.label}
+                        </button>
+                    );
+                })}
               </div>
             </div>
           )}
 
-          {/* 2. INGREDIENTES */}
+          {/* 2. Ingredientes */}
           <div className="space-y-2">
             <div className="flex justify-between items-end">
               <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-                {isClassic ? "2. Ingredientes" : "Personalizar (Opcional)"}
+                {isClassic ? "2. Elige Ingredientes" : "Ingredientes Extra"}
               </h4>
-              <span className="text-xs text-slate-500">
-                {selectedIngredients.length} seleccionados
+              <span className={`text-xs font-bold px-2 py-1 rounded ${selectedIngredients.length < PIZZA_RULES.includedIngredients && isClassic ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                {selectedIngredients.length} Seleccionados
               </span>
             </div>
             
             <p className="text-xs text-slate-500 mb-2">
               {isClassic 
-                ? `Incluye ${included} ingredientes. Extras +$${extraPrice.toFixed(2)}`
-                : `Ingredientes extra tienen costo adicional.`}
+                ? `Incluye ${PIZZA_RULES.includedIngredients}. Extras cobran $${PIZZA_RULES.extraIngredientPrice.toFixed(2)}`
+                : `Cada extra suma $${PIZZA_RULES.extraIngredientPrice.toFixed(2)}`}
             </p>
 
             <div className="grid grid-cols-2 gap-2">
@@ -137,7 +138,7 @@ export default function ProductOptionsModal({
                     onClick={() => toggleIngredient(ing)}
                     className={`flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border text-left transition-colors ${
                       isSelected
-                        ? "bg-green-50 border-green-500 text-green-800"
+                        ? "bg-green-50 border-green-500 text-green-800 ring-1 ring-green-500"
                         : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
                     }`}
                   >
@@ -150,25 +151,19 @@ export default function ProductOptionsModal({
           </div>
         </div>
 
-        {/* Footer Precios */}
+        {/* Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-500">Total a cobrar</p>
+            <p className="text-xs text-slate-500">Total estimado</p>
             <p className="text-2xl font-bold text-slate-900">
               ${finalPrice.toFixed(2)}
             </p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium"
-            >
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-slate-500 font-medium hover:bg-slate-50">
               Cancelar
             </button>
-            <button
-              onClick={handleConfirm}
-              className="px-6 py-2 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg shadow-green-200"
-            >
+            <button onClick={handleConfirm} className="px-6 py-2 rounded-lg bg-green-600 text-white font-bold hover:bg-green-700 shadow-lg">
               Agregar
             </button>
           </div>

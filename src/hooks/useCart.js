@@ -3,40 +3,51 @@ import { useState, useMemo } from 'react';
 export function useCart() {
   const [cart, setCart] = useState([]);
 
-  const addToCart = (item) => {
+  // Función para agregar item (maneja productos simples y configurados)
+  const addToCart = (product) => {
     setCart(prev => {
-      // Buscamos si existe un item con el mismo ID Y el mismo nombre (para variantes)
-      const existing = prev.find(i => i.id === item.id && i.name === item.name);
+      // Generar un ID único para el carrito si no viene uno (para productos simples)
+      const uniqueId = product.cartItemId || product.id; 
       
-      if (existing) {
-        return prev.map(i => 
-          (i.id === item.id && i.name === item.name) 
-            ? { ...i, qty: i.qty + 1 } 
-            : i
-        );
+      // Buscar si ya existe EXACTAMENTE el mismo item (mismo ID de producto Y mismos ingredientes/configuración)
+      // Para simplificar, si tiene 'cartItemId' (viene del modal), es único y se agrega aparte (o se busca por ese ID específico).
+      // Si es producto simple (refresco), se busca por product.id
+      
+      let existingIndex = -1;
+
+      if (product.isConfigured) {
+         // Si es configurado, buscamos por su ID único de configuración
+         existingIndex = prev.findIndex(i => i.cartItemId === uniqueId);
+      } else {
+         // Si es simple, buscamos por ID de base
+         existingIndex = prev.findIndex(i => i.id === product.id && !i.isConfigured);
       }
-      return [...prev, { ...item, qty: 1 }];
+      
+      if (existingIndex >= 0) {
+        // Si existe, clonamos y aumentamos cantidad
+        const newCart = [...prev];
+        newCart[existingIndex].qty += 1;
+        return newCart;
+      } else {
+        // Si no, agregamos nuevo con qty 1
+        return [...prev, { ...product, cartItemId: uniqueId, qty: 1 }];
+      }
     });
   };
 
-  const removeFromCart = (itemId, variant) => {
-    // Si eliminamos, filtramos por ID. Si usamos variantes, el nombre cambia, así que mejor filtrar por el index o referencia única, 
-    // pero para simplificar asumimos que el ID de Firestore + Nombre Variado es la clave única.
-    // En esta implementación simple, mejor pasamos el objeto item completo para comparar.
-    // Como CartPanel llama a removeFromCart(item.id), esto borraría todas las variantes.
-    // CORRECCIÓN: CartPanel debe pasar el item o un index.
-    
-    // Sin embargo, para no romper la API existente, vamos a filtrar por ID.
-    // NOTA: En un sistema prod, usaríamos un uniqueCartId.
-    setCart(prev => prev.filter(i => i.id !== itemId)); 
+  const removeFromCart = (itemToRemove) => {
+     // Usamos el identificador único que definimos al agregar
+     const targetId = itemToRemove.cartItemId || itemToRemove.id;
+     setCart(prev => prev.filter(i => (i.cartItemId || i.id) !== targetId));
   };
   
-  // MEJORA: updateQty y remove más precisos
   const updateQty = (itemToUpdate, delta) => {
+    const targetId = itemToUpdate.cartItemId || itemToUpdate.id;
+
     setCart(prev => {
       return prev.map(i => {
-        // Comparamos por referencia o nombre para distinguir variantes
-        if (i.id === itemToUpdate.id && i.name === itemToUpdate.name) {
+        const currentId = i.cartItemId || i.id;
+        if (currentId === targetId) {
           const newQty = i.qty + delta;
           return newQty <= 0 ? null : { ...i, qty: newQty };
         }
