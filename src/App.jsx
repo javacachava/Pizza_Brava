@@ -12,21 +12,32 @@ export default function App() {
   const { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal } = useCart();
   const { saveOrder, loading } = useOrders();
 
+  // Estados UI
   const [showTicket, setShowTicket] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   
+  // Estados Datos
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
+  // --- MANEJADOR DE CLICKS EN PRODUCTOS ---
   const handleProductClick = (product) => {
-    // TODAS las Pizzas abren modal. 
-    // Dentro del modal se decide si muestra selector de tamaño (solo Clásica) o solo extras.
-    if (product.mainCategory === "Pizzas") {
+    // LÓGICA REFINADA:
+    // Solo abrimos el modal si es una Pizza "Clásica" (para elegir tamaño e ingredientes).
+    // Las especialidades (que ya tienen ingredientes fijos) o cualquier otro producto se agregan directo.
+    
+    const isClassicPizza = product.mainCategory === "Pizzas" && (
+      product.pizzaType === "Clasica" || 
+      product.name.toLowerCase().includes("clásica") || 
+      product.name.toLowerCase().includes("clasica")
+    );
+
+    if (isClassicPizza) {
       setSelectedProduct(product);
       setShowProductModal(true);
     } else {
-      // Bebidas, Hamburguesas, etc. directo al carrito
+      // Especialidades, Bebidas, Hamburguesas, etc. -> Directo al carrito
       addToCart(product);
     }
   };
@@ -37,6 +48,7 @@ export default function App() {
     setSelectedProduct(null);
   };
 
+  // --- PROCESO DE COBRO ---
   const handleCheckout = (formData) => {
     setPendingOrderData(formData);
     setTicketInfo({
@@ -47,10 +59,13 @@ export default function App() {
     setShowTicket(true);
   };
 
+  // --- CONFIRMAR Y GUARDAR ---
   const handleConfirmOrder = async () => {
     if (!pendingOrderData) return;
+
     try {
       const finalTotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+      
       const orderPayload = {
         ...pendingOrderData,
         total: finalTotal,
@@ -65,6 +80,7 @@ export default function App() {
       });
 
       setTicketInfo(prev => ({ ...prev, orderId: id, orderNumber: number }));
+      
       alert(`¡Orden #${number} guardada con éxito!`);
       clearCart();
     } catch (error) {
@@ -81,7 +97,7 @@ export default function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
-      {/* Menú */}
+      {/* Panel Izquierdo: Menú */}
       <div className="flex-1 min-h-0 h-full">
         <MenuPanel 
             menuItems={menuItems} 
@@ -89,7 +105,7 @@ export default function App() {
         />
       </div>
 
-      {/* Carrito */}
+      {/* Panel Derecho: Carrito */}
       <div className="w-full md:w-auto md:border-l md:border-slate-200">
         <CartPanel
           cart={cart}

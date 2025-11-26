@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import {
-  ShoppingCart, Trash2, Plus, Minus, User, Phone, FileText, MapPin, Utensils
+  ShoppingCart, Trash2, Plus, Minus, User, Phone, FileText, MapPin, Utensils, ChevronDown, ChevronUp, Check
 } from "lucide-react";
 
 export default function CartPanel({
@@ -19,32 +19,23 @@ export default function CartPanel({
   const [customerAddress, setCustomerAddress] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
 
+  // Estado para abstraer/colapsar el formulario
+  const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+
   const handleValidateAndCheckout = () => {
-    // 1. Validar carrito vacío
     if (cart.length === 0) {
         alert("El carrito está vacío.");
         return;
     }
 
-    // 2. Validaciones específicas para Teléfono
     if (orderType === "telefono") {
-        if (!customerName || customerName.trim() === "") {
-            alert("⚠️ Faltan datos: Debes ingresar el NOMBRE del cliente.");
-            return;
-        }
-        if (!customerPhone || customerPhone.trim() === "") {
-            alert("⚠️ Faltan datos: Debes ingresar el TELÉFONO del cliente.");
-            return;
-        }
-        if (!customerAddress || customerAddress.trim() === "") {
-            alert("⚠️ Faltan datos: Debes ingresar la DIRECCIÓN de entrega.");
+        if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
+            alert("⚠️ Faltan datos obligatorios para pedido por teléfono.");
+            setIsFormCollapsed(false); // Abrir formulario si hay error
             return;
         }
     }
-
-    // 3. Validaciones para Local (Opcional: podrías exigir nombre para mesa, aquí lo dejo opcional)
     
-    // Si pasa todas las validaciones, procedemos
     onCheckout({
       orderType,
       customerName,
@@ -57,7 +48,7 @@ export default function CartPanel({
   return (
     <div className="w-full md:w-96 bg-white shadow-2xl flex flex-col h-full md:h-screen border-t md:border-t-0 md:border-l border-slate-200 z-10 relative">
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+      <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
             <ShoppingCart className="text-amber-600" />
@@ -65,7 +56,7 @@ export default function CartPanel({
           </h2>
           {lastOrderNumber && (
             <p className="text-xs text-green-600 font-bold mt-1">
-              Último Ticket: #{lastOrderNumber}
+              Último: #{lastOrderNumber}
             </p>
           )}
         </div>
@@ -122,78 +113,106 @@ export default function CartPanel({
         )}
       </div>
 
-      {/* Formulario de Cliente */}
-      <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
-        <div className="flex bg-white rounded-lg border border-slate-200 p-1">
-          <button
-            onClick={() => setOrderType("local")}
-            className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-              orderType === "local" ? "bg-amber-100 text-amber-800" : "text-slate-500"
-            }`}
-          >
-            <User size={14} /> Local
-          </button>
-          <button
-            onClick={() => setOrderType("telefono")}
-            className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-              orderType === "telefono" ? "bg-blue-100 text-blue-800" : "text-slate-500"
-            }`}
-          >
-            <Phone size={14} /> Teléfono
-          </button>
-        </div>
+      {/* Formulario de Cliente (Abstraíble) */}
+      <div className="border-t border-slate-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+        
+        {/* Cabecera del Formulario (Siempre visible) */}
+        <button 
+          onClick={() => setIsFormCollapsed(!isFormCollapsed)}
+          className="w-full p-3 bg-slate-50 flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider hover:bg-slate-100 transition-colors"
+        >
+            <span className="flex items-center gap-2">
+                <User size={14} />
+                {isFormCollapsed 
+                  ? (customerName ? `${customerName} (${orderType})` : "Datos del Cliente") 
+                  : "Datos del Cliente"}
+            </span>
+            {isFormCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
 
-        <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="Nombre del Cliente *"
-              className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                orderType === 'telefono' && !customerName ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-amber-500'
-              }`}
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-            />
-
-            {orderType === "telefono" && (
-            <>
-                <input
-                  type="tel"
-                  placeholder="Teléfono *"
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                    !customerPhone ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
-                  }`}
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                />
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                  <input
-                      type="text"
-                      placeholder="Dirección exacta *"
-                      className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                        !customerAddress ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
-                      }`}
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                  />
+        {/* Cuerpo del Formulario (Colapsable) */}
+        {!isFormCollapsed && (
+            <div className="p-4 space-y-3 bg-slate-50">
+                <div className="flex bg-white rounded-lg border border-slate-200 p-1">
+                <button
+                    onClick={() => setOrderType("local")}
+                    className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
+                    orderType === "local" ? "bg-amber-100 text-amber-800" : "text-slate-500"
+                    }`}
+                >
+                    <User size={14} /> Local
+                </button>
+                <button
+                    onClick={() => setOrderType("telefono")}
+                    className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
+                    orderType === "telefono" ? "bg-blue-100 text-blue-800" : "text-slate-500"
+                    }`}
+                >
+                    <Phone size={14} /> Teléfono
+                </button>
                 </div>
-            </>
-            )}
 
-            <div className="relative">
-                <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                <textarea
-                    placeholder="Notas opcionales..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none h-12 resize-none bg-white"
-                    value={orderNotes}
-                    onChange={(e) => setOrderNotes(e.target.value)}
-                />
+                <div className="space-y-2">
+                    <input
+                    type="text"
+                    placeholder="Nombre del Cliente *"
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                        orderType === 'telefono' && !customerName ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-amber-500'
+                    }`}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    />
+
+                    {orderType === "telefono" && (
+                    <>
+                        <input
+                        type="tel"
+                        placeholder="Teléfono *"
+                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                            !customerPhone ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
+                        }`}
+                        value={customerPhone}
+                        onChange={(e) => setCustomerPhone(e.target.value)}
+                        />
+                        <div className="relative">
+                        <MapPin className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                        <input
+                            type="text"
+                            placeholder="Dirección exacta *"
+                            className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                                !customerAddress ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
+                            }`}
+                            value={customerAddress}
+                            onChange={(e) => setCustomerAddress(e.target.value)}
+                        />
+                        </div>
+                    </>
+                    )}
+
+                    <div className="relative">
+                        <FileText className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                        <textarea
+                            placeholder="Notas opcionales..."
+                            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none h-12 resize-none bg-white"
+                            value={orderNotes}
+                            onChange={(e) => setOrderNotes(e.target.value)}
+                        />
+                    </div>
+                    
+                    {/* Botón para confirmar datos y colapsar */}
+                    <button 
+                        onClick={() => setIsFormCollapsed(true)}
+                        className="w-full py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded hover:bg-slate-300 flex items-center justify-center gap-1"
+                    >
+                        <Check size={14}/> Listo (Ocultar detalles)
+                    </button>
+                </div>
             </div>
-        </div>
+        )}
       </div>
 
       {/* Footer Total y Botón */}
-      <div className="p-6 bg-slate-50 border-t border-slate-200">
+      <div className="p-6 bg-slate-50 border-t border-slate-200 shrink-0">
         <div className="flex justify-between mb-4 text-xl font-bold text-slate-900">
           <span>Total</span>
           <span>${cartTotal.toFixed(2)}</span>

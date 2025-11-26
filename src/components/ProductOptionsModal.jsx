@@ -10,10 +10,6 @@ export default function ProductOptionsModal({
 }) {
   if (!isOpen || !product) return null;
 
-  // 1. IDENTIFICAR SI ES PIZZA CLÁSICA (La única que pide tamaño y 2 ingredientes obligatorios)
-  // Verifica si en la DB tiene pizzaType="Clasica" O si el nombre incluye "Clásica"
-  const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica") || product.name.toLowerCase().includes("clasica");
-
   const [size, setSize] = useState("Personal");
   const [selectedIngredients, setSelectedIngredients] = useState([]);
 
@@ -22,13 +18,13 @@ export default function ProductOptionsModal({
     setSelectedIngredients([]);
   }, [product]);
 
-  // Calcular precio
+  // Calcular precio base según tamaño
   const basePrice = useMemo(() => {
-    if (!isClassic) return product.price; // Especialidades tienen precio fijo
     return product.price + PIZZA_RULES.sizes[size].priceModifier;
-  }, [product, size, isClassic]);
+  }, [product, size]);
 
-  const extraCount = Math.max(0, selectedIngredients.length - (isClassic ? PIZZA_RULES.includedIngredients : 0));
+  // Calcular precio extras
+  const extraCount = Math.max(0, selectedIngredients.length - PIZZA_RULES.includedIngredients);
   const extrasCost = extraCount * PIZZA_RULES.extraIngredientPrice;
   const finalPrice = basePrice + extrasCost;
 
@@ -39,12 +35,10 @@ export default function ProductOptionsModal({
   };
 
   const handleConfirm = () => {
-    // VALIDACIÓN ESTRICTA SOLO PARA CLÁSICA
-    if (isClassic) {
-        if (selectedIngredients.length < PIZZA_RULES.includedIngredients) {
-            alert(`La Pizza Clásica requiere elegir al menos ${PIZZA_RULES.includedIngredients} ingredientes.`);
-            return;
-        }
+    // Validación Estricta para Pizza Clásica
+    if (selectedIngredients.length < PIZZA_RULES.includedIngredients) {
+        alert(`Debes elegir al menos ${PIZZA_RULES.includedIngredients} ingredientes.`);
+        return;
     }
 
     const cartItem = {
@@ -52,8 +46,8 @@ export default function ProductOptionsModal({
       cartItemId: `${product.id}-${Date.now()}`,
       price: finalPrice,
       ingredients: selectedIngredients,
-      selectedSize: isClassic ? size : "Único",
-      name: isClassic ? `${product.name} (${size})` : product.name,
+      selectedSize: size,
+      name: `${product.name} (${size})`, // Nombre formateado para ticket
       isConfigured: true
     };
 
@@ -69,7 +63,7 @@ export default function ProductOptionsModal({
           <div>
             <h3 className="font-bold text-lg flex items-center gap-2">
               <ChefHat size={18} className="text-amber-400"/> 
-              {isClassic ? "Armar Pizza Clásica" : `Extras para ${product.name}`}
+              Armar Pizza Clásica
             </h3>
           </div>
           <button onClick={onClose} className="hover:bg-white/10 p-1 rounded">
@@ -79,52 +73,48 @@ export default function ProductOptionsModal({
 
         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-6">
           
-          {/* SOLO CLÁSICAS: Selector de Tamaño */}
-          {isClassic && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-                1. Tamaño
-              </h4>
-              <div className="flex gap-3">
-                {Object.keys(PIZZA_RULES.sizes).map((key) => {
-                    const info = PIZZA_RULES.sizes[key];
-                    return (
-                        <button
-                            key={key}
-                            onClick={() => setSize(key)}
-                            className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all ${
-                            size === key
-                                ? "bg-amber-600 border-amber-700 text-white shadow-md"
-                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
-                            }`}
-                        >
-                            {info.label}
-                        </button>
-                    );
-                })}
-              </div>
+          {/* 1. Selector de Tamaño */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+              1. Tamaño
+            </h4>
+            <div className="flex gap-3">
+              {Object.keys(PIZZA_RULES.sizes).map((key) => {
+                  const info = PIZZA_RULES.sizes[key];
+                  return (
+                      <button
+                          key={key}
+                          onClick={() => setSize(key)}
+                          className={`flex-1 py-3 rounded-xl border text-sm font-bold transition-all ${
+                          size === key
+                              ? "bg-amber-600 border-amber-700 text-white shadow-md scale-105"
+                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-100"
+                          }`}
+                      >
+                          {info.label}
+                      </button>
+                  );
+              })}
             </div>
-          )}
+          </div>
 
-          {/* Ingredientes (Obligatorios en Clásica, Opcionales en otras) */}
+          {/* 2. Ingredientes */}
           <div className="space-y-2">
             <div className="flex justify-between items-end">
               <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-                {isClassic ? "2. Ingredientes" : "Agregar Extras (Opcional)"}
+                2. Elige Ingredientes
               </h4>
               <span className={`text-xs font-bold px-2 py-1 rounded ${
-                  isClassic && selectedIngredients.length < PIZZA_RULES.includedIngredients 
+                  selectedIngredients.length < PIZZA_RULES.includedIngredients 
                   ? 'bg-red-100 text-red-600' 
                   : 'bg-green-100 text-green-600'
               }`}>
-                {selectedIngredients.length} Seleccionados
+                {selectedIngredients.length} / {PIZZA_RULES.includedIngredients} Mínimo
               </span>
             </div>
             
             <p className="text-xs text-slate-500 mb-2">
-              {isClassic 
-                ? `Incluye ${PIZZA_RULES.includedIngredients} ingredientes. Adicionales +$${PIZZA_RULES.extraIngredientPrice.toFixed(2)}`
-                : `Cada ingrediente extra suma +$${PIZZA_RULES.extraIngredientPrice.toFixed(2)}`}
+              Incluye {PIZZA_RULES.includedIngredients} ingredientes. Adicionales +${PIZZA_RULES.extraIngredientPrice.toFixed(2)}
             </p>
 
             <div className="grid grid-cols-2 gap-2">
@@ -152,7 +142,7 @@ export default function ProductOptionsModal({
         {/* Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
           <div>
-            <p className="text-xs text-slate-500">Total</p>
+            <p className="text-xs text-slate-500">Precio Final</p>
             <p className="text-2xl font-bold text-slate-900">
               ${finalPrice.toFixed(2)}
             </p>
