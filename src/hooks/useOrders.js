@@ -4,7 +4,8 @@ import {
   runTransaction,
   serverTimestamp,
   writeBatch,
-  collection
+  collection,
+  updateDoc
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 
@@ -31,6 +32,7 @@ export function useOrders() {
           today: todayStr,
           lastNumber: nextNumber
         });
+
         return nextNumber;
       });
     } catch (e) {
@@ -41,6 +43,7 @@ export function useOrders() {
 
   const saveOrder = async ({ orderData, cartItems }) => {
     setLoading(true);
+
     try {
       const number = await generateOrderNumber();
       const batch = writeBatch(db);
@@ -50,13 +53,12 @@ export function useOrders() {
         ...orderData,
         number,
         createdAt: serverTimestamp(),
-        createdBy: "recepcion-tablet"
+        createdBy: "recepcion-tablet",
+        status: "pendiente"
       });
 
       cartItems.forEach((item) => {
-        const itemRef = doc(
-          collection(db, `orders/${newOrderRef.id}/items`)
-        );
+        const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
           menuId: item.id,
           name: item.name,
@@ -79,5 +81,16 @@ export function useOrders() {
     }
   };
 
-  return { saveOrder, loading };
+  // AGREGADO: actualizar estado de orden
+  const updateOrderStatus = async (orderId, newStatus) => {
+    try {
+      const orderRef = doc(db, "orders", orderId);
+      await updateDoc(orderRef, { status: newStatus });
+    } catch (error) {
+      console.error("Error actualizando orden:", error);
+      throw error;
+    }
+  };
+
+  return { saveOrder, updateOrderStatus, loading };
 }
