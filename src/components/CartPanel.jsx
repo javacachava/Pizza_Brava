@@ -19,19 +19,26 @@ export default function CartPanel({
   const [customerAddress, setCustomerAddress] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
 
-  // Estado para abstraer/colapsar el formulario
+  // Estado para colapsar datos del cliente
   const [isFormCollapsed, setIsFormCollapsed] = useState(false);
 
   const handleValidateAndCheckout = () => {
+    // 1. Carrito no vacío
     if (cart.length === 0) {
         alert("El carrito está vacío.");
         return;
     }
 
+    // 2. Validación ESTRICTA para Teléfono
     if (orderType === "telefono") {
-        if (!customerName.trim() || !customerPhone.trim() || !customerAddress.trim()) {
-            alert("⚠️ Faltan datos obligatorios para pedido por teléfono.");
-            setIsFormCollapsed(false); // Abrir formulario si hay error
+        let missing = [];
+        if (!customerName.trim()) missing.push("Nombre");
+        if (!customerPhone.trim()) missing.push("Teléfono");
+        if (!customerAddress.trim()) missing.push("Dirección");
+
+        if (missing.length > 0) {
+            alert(`⚠️ Faltan datos obligatorios:\n- ${missing.join("\n- ")}`);
+            setIsFormCollapsed(false); // Abrir formulario para que vea qué falta
             return;
         }
     }
@@ -113,10 +120,8 @@ export default function CartPanel({
         )}
       </div>
 
-      {/* Formulario de Cliente (Abstraíble) */}
+      {/* Formulario Colapsable */}
       <div className="border-t border-slate-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-        
-        {/* Cabecera del Formulario (Siempre visible) */}
         <button 
           onClick={() => setIsFormCollapsed(!isFormCollapsed)}
           className="w-full p-3 bg-slate-50 flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-wider hover:bg-slate-100 transition-colors"
@@ -130,61 +135,60 @@ export default function CartPanel({
             {isFormCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
         </button>
 
-        {/* Cuerpo del Formulario (Colapsable) */}
         {!isFormCollapsed && (
             <div className="p-4 space-y-3 bg-slate-50">
                 <div className="flex bg-white rounded-lg border border-slate-200 p-1">
-                <button
+                  <button
                     onClick={() => setOrderType("local")}
                     className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-                    orderType === "local" ? "bg-amber-100 text-amber-800" : "text-slate-500"
+                      orderType === "local" ? "bg-amber-100 text-amber-800" : "text-slate-500"
                     }`}
-                >
+                  >
                     <User size={14} /> Local
-                </button>
-                <button
+                  </button>
+                  <button
                     onClick={() => setOrderType("telefono")}
                     className={`flex-1 py-1 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2 ${
-                    orderType === "telefono" ? "bg-blue-100 text-blue-800" : "text-slate-500"
+                      orderType === "telefono" ? "bg-blue-100 text-blue-800" : "text-slate-500"
                     }`}
-                >
+                  >
                     <Phone size={14} /> Teléfono
-                </button>
+                  </button>
                 </div>
 
                 <div className="space-y-2">
                     <input
-                    type="text"
-                    placeholder="Nombre del Cliente *"
-                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                        orderType === 'telefono' && !customerName ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-amber-500'
-                    }`}
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
+                      type="text"
+                      placeholder="Nombre del Cliente *"
+                      className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                        orderType === 'telefono' && !customerName.trim() ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-amber-500'
+                      }`}
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
                     />
 
                     {orderType === "telefono" && (
                     <>
                         <input
-                        type="tel"
-                        placeholder="Teléfono *"
-                        className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                            !customerPhone ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
-                        }`}
-                        value={customerPhone}
-                        onChange={(e) => setCustomerPhone(e.target.value)}
+                          type="tel"
+                          placeholder="Teléfono *"
+                          className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                            !customerPhone.trim() ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'
+                          }`}
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
                         />
                         <div className="relative">
-                        <MapPin className="absolute left-3 top-2.5 text-slate-400" size={16} />
-                        <input
-                            type="text"
-                            placeholder="Dirección exacta *"
-                            className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
-                                !customerAddress ? 'border-red-300 focus:ring-red-500' : 'border-slate-300 focus:ring-blue-500'
-                            }`}
-                            value={customerAddress}
-                            onChange={(e) => setCustomerAddress(e.target.value)}
-                        />
+                          <MapPin className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                          <input
+                              type="text"
+                              placeholder="Dirección exacta *"
+                              className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 outline-none ${
+                                !customerAddress.trim() ? 'border-red-300 focus:ring-red-200' : 'border-slate-300 focus:ring-blue-500'
+                              }`}
+                              value={customerAddress}
+                              onChange={(e) => setCustomerAddress(e.target.value)}
+                          />
                         </div>
                     </>
                     )}
@@ -199,19 +203,17 @@ export default function CartPanel({
                         />
                     </div>
                     
-                    {/* Botón para confirmar datos y colapsar */}
                     <button 
                         onClick={() => setIsFormCollapsed(true)}
                         className="w-full py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded hover:bg-slate-300 flex items-center justify-center gap-1"
                     >
-                        <Check size={14}/> Listo (Ocultar detalles)
+                        <Check size={14}/> Ocultar Datos
                     </button>
                 </div>
             </div>
         )}
       </div>
 
-      {/* Footer Total y Botón */}
       <div className="p-6 bg-slate-50 border-t border-slate-200 shrink-0">
         <div className="flex justify-between mb-4 text-xl font-bold text-slate-900">
           <span>Total</span>
