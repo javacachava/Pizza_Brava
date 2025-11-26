@@ -33,14 +33,17 @@ export default function App() {
 
   // Lógica: qué pasa cuando tocan un producto en el menú
   const handleProductClick = (product) => {
-    // Regla simple: si es pizza, abre modal; si no, directo al carrito.
-    if (product.mainCategory === "Pizzas") {
-      setSelectedBaseProduct(product);
-      setShowProductModal(true);
-    } else {
-      addToCart(product);
-    }
-  };
+  // Solo la Pizza Clásica usa modal (tamaños + ingredientes)
+  if (isClassicPizza(product)) {
+    setSelectedBaseProduct(product);
+    setShowProductModal(true);
+    return;
+  }
+
+  // Todo lo demás (otras pizzas, bebidas, entradas, etc.) va directo
+  addToCart(product);
+};
+
 
   // Cuando el usuario confirma la pizza configurada en el modal
   const handleConfirmConfiguredProduct = (configuredItem) => {
