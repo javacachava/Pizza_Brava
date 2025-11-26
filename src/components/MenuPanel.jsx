@@ -1,50 +1,23 @@
 import React, { useState, useMemo } from "react";
 import { Search } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
-import { SUB_FILTERS } from "../constants/productConfig";
 
 export default function MenuPanel({ menuItems, onProductClick }) {
   const [activeCategory, setActiveCategory] = useState("Pizzas");
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // Estado unificado para subfiltros. Se resetea al cambiar de categoría mayor.
-  const [subFilter, setSubFilter] = useState("");
-
-  // Al cambiar categoría principal, reseteamos o ponemos el primer subfiltro por defecto
-  const handleCategoryChange = (catId) => {
-    setActiveCategory(catId);
-    setSearchQuery("");
-    // Si la nueva categoría tiene subfiltros, activar el primero por defecto
-    if (SUB_FILTERS[catId]) {
-      setSubFilter(SUB_FILTERS[catId][0]);
-    } else {
-      setSubFilter("");
-    }
-  };
 
   const filteredProducts = useMemo(() => {
+    // 1. Filtrar solo por categoría principal (Pizzas, Bebidas, etc.)
     let products = menuItems.filter((item) => item.mainCategory === activeCategory);
 
-    // Aplicar subfiltro si existe y la categoría lo requiere
-    if (subFilter && SUB_FILTERS[activeCategory]) {
-      // Asumimos que en Firebase guardas un campo específico según la categoría
-      // Ej: pizzas -> 'pizzaType', bebidas -> 'drinkTemperature', burgers -> 'burgerType'
-      if (activeCategory === "Pizzas") {
-         products = products.filter(p => p.pizzaType === subFilter);
-      } else if (activeCategory === "Bebidas") {
-         products = products.filter(p => p.drinkTemperature === subFilter);
-      } else if (activeCategory === "Hamburguesas") {
-         products = products.filter(p => p.burgerType === subFilter);
-      }
-    }
-
+    // 2. Buscador
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       products = products.filter((p) => p.name.toLowerCase().includes(q));
     }
 
     return products;
-  }, [menuItems, activeCategory, subFilter, searchQuery]);
+  }, [menuItems, activeCategory, searchQuery]);
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -67,12 +40,15 @@ export default function MenuPanel({ menuItems, onProductClick }) {
         </div>
       </div>
 
-      {/* Categorías Principales */}
+      {/* Categorías Principales (Sin submenús) */}
       <div className="flex bg-white shadow-sm overflow-x-auto scrollbar-hide shrink-0">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
-            onClick={() => handleCategoryChange(cat.id)}
+            onClick={() => {
+              setActiveCategory(cat.id);
+              setSearchQuery("");
+            }}
             className={`flex-shrink-0 px-6 py-4 font-medium transition-colors border-b-4 ${
               activeCategory === cat.id
                 ? "border-amber-600 text-amber-900 bg-amber-50"
@@ -84,30 +60,11 @@ export default function MenuPanel({ menuItems, onProductClick }) {
         ))}
       </div>
 
-      {/* Sub-Filtros Dinámicos */}
-      {SUB_FILTERS[activeCategory] && (
-        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex gap-3 justify-center shrink-0">
-          {SUB_FILTERS[activeCategory].map((filterName) => (
-            <button
-              key={filterName}
-              onClick={() => setSubFilter(filterName)}
-              className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
-                subFilter === filterName
-                  ? "bg-amber-600 text-white border-amber-700 shadow-sm"
-                  : "bg-white border-slate-300 text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {filterName}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* Grid de Productos */}
       <div className="flex-1 overflow-y-auto p-4 bg-slate-100">
         {filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
-            <p>No hay productos disponibles.</p>
+            <p>No hay productos en esta categoría.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-20 md:pb-4">
@@ -129,10 +86,10 @@ export default function MenuPanel({ menuItems, onProductClick }) {
                   {product.name}
                 </h3>
                 
-                {/* Indicador visual si requiere configuración */}
-                {product.mainCategory === "Pizzas" && (
-                  <span className="absolute bottom-4 right-4 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-                    Opciones
+                {/* Etiqueta visual solo si es Pizza Clásica */}
+                {(product.pizzaType === "Clasica" || product.name.includes("Clásica")) && (
+                  <span className="absolute bottom-4 right-4 text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                    Armar
                   </span>
                 )}
               </button>

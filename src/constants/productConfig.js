@@ -4,17 +4,10 @@ export const PIZZA_INGREDIENTS = [
 ];
 
 export const PIZZA_RULES = {
-  includedIngredients: 2, // 2 ingredientes obligatorios incluidos
+  includedIngredients: 2, // Solo aplica a Clásicas
   extraIngredientPrice: 0.75,
   sizes: {
-    Personal: { label: "Personal", priceModifier: 0 }, // Precio base
-    Grande: { label: "Gigante", priceModifier: 8.00 }   // Precio base + 8
+    Personal: { label: "Personal", priceModifier: 0 }, // Precio base del producto
+    Grande: { label: "Gigante", priceModifier: 8.00 }   // Suma $8.00 al base
   }
-};
-
-// Configuración de Subcategorías para los filtros del Menú
-export const SUB_FILTERS = {
-  Pizzas: ["Clásica", "Especialidad"], // Cambié a esto según tu lógica de "Clásica" vs otras
-  Bebidas: ["Fría", "Caliente"],
-  Hamburguesas: ["Individual", "Combo"]
 };
