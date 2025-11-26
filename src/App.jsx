@@ -19,7 +19,7 @@ export default function App() {
   } = useCart();
   const { saveOrder, loading } = useOrders();
 
-  // Ticket / orden
+  // Estados
   const [showTicket, setShowTicket] = useState(false);
   const [ticketItems, setTicketItems] = useState([]);
   const [tempQrId, setTempQrId] = useState(null);
@@ -27,106 +27,76 @@ export default function App() {
   const [currentOrderId, setCurrentOrderId] = useState(null);
   const [pendingOrderData, setPendingOrderData] = useState({});
 
-  // Modal de configuración de producto (pizzas, etc.)
+  // Modal Producto
   const [showProductModal, setShowProductModal] = useState(false);
   const [selectedBaseProduct, setSelectedBaseProduct] = useState(null);
 
-  // Lógica: qué pasa cuando tocan un producto en el menú
+  // --- LOGICA NUEVA DE CLICK ---
   const handleProductClick = (product) => {
-  // Solo la Pizza Clásica usa modal (tamaños + ingredientes)
-  if (isClassicPizza(product)) {
-    setSelectedBaseProduct(product);
-    setShowProductModal(true);
-    return;
-  }
+    // 1. Si es PIZZA (cualquier tipo), abrimos el modal.
+    // El modal se encargará de mostrar selector de tamaño SI es 'Clasica'.
+    if (product.mainCategory === "Pizzas") {
+      setSelectedBaseProduct(product);
+      setShowProductModal(true);
+      return;
+    }
 
-  // Todo lo demás (otras pizzas, bebidas, entradas, etc.) va directo
-  addToCart(product);
-};
+    // 2. Todo lo demás se agrega directo (Bebidas, Burgers, etc.)
+    addToCart(product);
+  };
 
-
-  // Cuando el usuario confirma la pizza configurada en el modal
   const handleConfirmConfiguredProduct = (configuredItem) => {
     addToCart(configuredItem);
     setShowProductModal(false);
     setSelectedBaseProduct(null);
   };
 
-  // Paso 1: recibir datos del formulario del carrito y mostrar ticket
+  // Checkout y Ticket (sin cambios mayores)
   const handleCheckoutRequest = (formData) => {
-    // Validaciones fuertes para Teléfono
     if (formData.orderType === "telefono") {
-      if (!formData.customerName?.trim()) {
-        alert("Nombre de cliente es obligatorio.");
-        return;
-      }
-      if (!formData.customerPhone?.trim()) {
-        alert("Teléfono de contacto es obligatorio.");
-        return;
-      }
-      if (!formData.customerAddress?.trim()) {
-        alert("Dirección de entrega es obligatoria.");
-        return;
-      }
+      if (!formData.customerName?.trim()) alert("Nombre requerido.");
+      else if (!formData.customerPhone?.trim()) alert("Teléfono requerido.");
+      else if (!formData.customerAddress?.trim()) alert("Dirección requerida.");
+      else processCheckout(formData);
+    } else {
+      processCheckout(formData);
     }
+  };
 
+  const processCheckout = (formData) => {
     setPendingOrderData(formData);
     setTicketItems([...cart]);
     setTempQrId(Date.now());
     setShowTicket(true);
   };
 
-  // Paso 2: confirmar ticket y guardar en Firestore
   const handleConfirmOrder = async () => {
     try {
-      const totalToSave = ticketItems.reduce(
-        (t, i) => t + i.price * i.qty,
-        0
-      );
-
+      const totalToSave = ticketItems.reduce((t, i) => t + i.price * i.qty, 0);
       const orderData = {
-        orderType: pendingOrderData.orderType,
-        customerName:
-          pendingOrderData.customerName?.trim() ||
-          (pendingOrderData.orderType === "local"
-            ? "Cliente Local"
-            : "Anónimo"),
-        customerPhone: pendingOrderData.customerPhone || "",
-        customerAddress: pendingOrderData.customerAddress || "",
-        orderNotes: pendingOrderData.orderNotes || "",
+        ...pendingOrderData,
+        customerName: pendingOrderData.customerName?.trim() || "Mostrador",
         subtotal: totalToSave,
         total: totalToSave,
         status: "nuevo"
       };
 
-      const { number, id } = await saveOrder({
-        orderData,
-        cartItems: ticketItems
-      });
-
+      const { number, id } = await saveOrder({ orderData, cartItems: ticketItems });
       setCurrentOrderNumber(number);
       setCurrentOrderId(id);
-
-      alert(`¡Pedido #${number} enviado a cocina!`);
+      alert(`¡Pedido #${number} enviado!`);
       clearCart();
     } catch (error) {
-      alert("Error al guardar el pedido.");
+      console.error(error);
+      alert("Error al guardar pedido.");
     }
   };
 
-  // Cerrar ticket (después de confirmar o al volver)
   const handleCloseTicket = () => {
     setShowTicket(false);
-
     if (currentOrderId) {
-      // Ya se guardó la orden
       setCurrentOrderId(null);
       setCurrentOrderNumber(null);
-      setTicketItems([]);
-      setTempQrId(null);
-      setPendingOrderData({});
-    } else {
-      // Solo estaba viendo el ticket sin confirmar
       setTicketItems([]);
       setTempQrId(null);
       setPendingOrderData({});
@@ -135,31 +105,22 @@ export default function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
-      {/* IZQUIERDA / ARRIBA: MENÚ */}
       <div className="flex-1 min-h-0">
-        <MenuPanel
-          menuItems={menuItems}
-          onProductClick={handleProductClick} // <-- AQUÍ va, NO onAddToCart
-        />
+        <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
       </div>
-
-      {/* DERECHA / ABAJO: CARRITO */}
       <div className="w-full md:w-auto md:border-l md:border-slate-200">
         <CartPanel
           cart={cart}
           cartTotal={cartTotal}
           updateQty={updateQty}
           removeFromCart={removeFromCart}
-          onAddToCart={addToCart}
           onCheckout={handleCheckoutRequest}
           showTicket={showTicket}
-          menuItems={menuItems}
           lastOrderNumber={currentOrderNumber}
           loadingOrder={loading}
         />
       </div>
 
-      {/* MODAL TICKET */}
       <TicketModal
         isOpen={showTicket}
         onClose={handleCloseTicket}
@@ -172,7 +133,6 @@ export default function App() {
         tempQrId={tempQrId}
       />
 
-      {/* MODAL OPCIONES DE PRODUCTO (PIZZAS) */}
       <ProductOptionsModal
         isOpen={showProductModal}
         product={selectedBaseProduct}
