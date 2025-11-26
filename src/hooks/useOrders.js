@@ -32,7 +32,6 @@ export function useOrders() {
           today: todayStr,
           lastNumber: nextNumber
         });
-
         return nextNumber;
       });
     } catch (e) {
@@ -43,20 +42,32 @@ export function useOrders() {
 
   const saveOrder = async ({ orderData, cartItems }) => {
     setLoading(true);
-
     try {
       const number = await generateOrderNumber();
       const batch = writeBatch(db);
       const newOrderRef = doc(collection(db, "orders"));
 
+      // OPTIMIZACIÓN PARA ANALÍTICA:
+      // Guardamos una copia de los items directamente en la orden principal (itemsSnapshot).
+      // Esto evita tener que leer subcolecciones para generar reportes, reduciendo costos y tiempo.
+      const itemsSnapshot = cartItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        qty: item.qty,
+        mainCategory: item.mainCategory || "Otros", // Asegura categoría para reportes
+        total: item.price * item.qty
+      }));
+
       batch.set(newOrderRef, {
         ...orderData,
         number,
+        itemsSnapshot, // <--- DATA CLAVE PARA REPORTES
         createdAt: serverTimestamp(),
-        createdBy: "recepcion-tablet",
-        status: "pendiente"
+        createdBy: "recepcion-tablet"
       });
 
+      // Mantenemos la subcolección por si se requiere detalle granular o histórico
       cartItems.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
@@ -81,7 +92,6 @@ export function useOrders() {
     }
   };
 
-  // AGREGADO: actualizar estado de orden
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "orders", orderId);
