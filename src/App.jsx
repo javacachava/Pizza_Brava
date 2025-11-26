@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useMenu } from "./hooks/useMenu";
 import { useCart } from "./hooks/useCart";
 import { useOrders } from "./hooks/useOrders";
+import { useConfig } from "./hooks/useConfig"; // <--- Nuevo Hook
 import MenuPanel from "./components/MenuPanel";
 import CartPanel from "./components/CartPanel";
 import TicketModal from "./components/TicketModal";
@@ -10,7 +11,10 @@ import ProductOptionsModal from "./components/ProductOptionsModal";
 export default function App() {
   const { menuItems } = useMenu();
   const { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal } = useCart();
-  const { saveOrder, loading } = useOrders();
+  const { saveOrder, loading: loadingOrder } = useOrders();
+  
+  // Cargar configuración global desde Firebase
+  const { config, loadingConfig } = useConfig();
 
   const [showTicket, setShowTicket] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -18,14 +22,22 @@ export default function App() {
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
-  const handleProductClick = (product) => {
-    const isClassicPizza = product.mainCategory === "Pizzas" && (
-      product.pizzaType === "Clasica" || 
-      product.name.toLowerCase().includes("clásica") || 
-      product.name.toLowerCase().includes("clasica")
+  // Pantalla de Carga Inicial (Bloquea la app hasta tener ingredientes y precios)
+  if (loadingConfig) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-100 text-slate-500 font-bold">
+        Cargando configuración del sistema...
+      </div>
     );
+  }
 
-    if (isClassicPizza) {
+  const handleProductClick = (product) => {
+    const needsConfig = 
+        product.mainCategory === "Pizzas" || 
+        product.mainCategory === "Platos" || 
+        product.name.toLowerCase().includes("combo");
+
+    if (needsConfig) {
       setSelectedProduct(product);
       setShowProductModal(true);
     } else {
@@ -45,13 +57,10 @@ export default function App() {
     setShowTicket(true);
   };
 
-  // --- FIX: MANEJO DE ERRORES Y CONCURRENCIA ---
   const handleConfirmOrder = async () => {
-    // 1. Evitar doble envío si ya está cargando
-    if (loading || !pendingOrderData) return;
+    if (!pendingOrderData || loadingOrder) return;
 
     try {
-      // 2. Recalcular total final saneado antes de enviar a DB
       const finalTotal = Number(cart.reduce((acc, item) => acc + (item.price * item.qty), 0).toFixed(2));
       
       const orderPayload = {
@@ -59,7 +68,7 @@ export default function App() {
         total: finalTotal,
         subtotal: finalTotal,
         status: 'nuevo',
-        customerName: pendingOrderData.customerName || "Cliente Mostrador"
+        customerName: pendingOrderData.customerName || "Mostrador"
       };
 
       const { number, id } = await saveOrder({ 
@@ -71,8 +80,8 @@ export default function App() {
       alert(`¡Orden #${number} guardada con éxito!`);
       clearCart();
     } catch (error) {
-      console.error("Error crítico al guardar:", error);
-      alert("Error de conexión. No se pudo guardar la orden. Intenta de nuevo.");
+      console.error("Error:", error);
+      alert("Error de conexión.");
     }
   };
 
@@ -85,7 +94,10 @@ export default function App() {
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
       <div className="flex-1 min-h-0 h-full">
-        <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
+        <MenuPanel 
+            menuItems={menuItems} 
+            onProductClick={handleProductClick} 
+        />
       </div>
 
       <div className="w-full md:w-auto md:border-l md:border-slate-200">
@@ -97,15 +109,17 @@ export default function App() {
           onCheckout={handleCheckout}
           showTicket={showTicket}
           lastOrderNumber={ticketInfo.orderNumber}
-          loadingOrder={loading}
+          loadingOrder={loadingOrder}
         />
       </div>
 
+      {/* Pasamos la configuración global al modal */}
       <ProductOptionsModal
         isOpen={showProductModal}
         product={selectedProduct}
         onClose={() => setShowProductModal(false)}
         onConfirm={handleConfirmModal}
+        globalConfig={config} // <--- AQUÍ PASAMOS LA DATA DE FIREBASE
       />
 
       <TicketModal
@@ -116,7 +130,7 @@ export default function App() {
         orderData={pendingOrderData || {}}
         currentOrderId={ticketInfo.orderId}
         currentOrderNumber={ticketInfo.orderNumber}
-        loading={loading}
+        loading={loadingOrder}
         tempQrId={Date.now()}
       />
     </div>
