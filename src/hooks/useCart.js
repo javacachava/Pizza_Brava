@@ -5,30 +5,21 @@ export function useCart() {
 
   const addToCart = (item) => {
     setCart(prev => {
-      // 1. Identificador único (si viene del modal usa cartItemId, sino id normal)
       const uniqueId = item.cartItemId || item.id;
       
-      // 2. Buscar índice si ya existe
       const existingIndex = prev.findIndex(i => {
-          // Si es un producto configurado (pizza armada), comparar por ID único
           if (item.isConfigured) return i.cartItemId === uniqueId;
-          // Si es producto simple (soda), comparar ID y que no sea configurado
           return i.id === item.id && !i.isConfigured;
       });
 
       if (existingIndex >= 0) {
-        // === CORRECCIÓN DEL BUG (+2) ===
-        // Creamos una copia NUEVA del array
         const newCart = [...prev];
-        // Y lo más importante: Creamos una copia NUEVA del objeto item
-        // Antes modificabas newCart[existingIndex].qty += 1 directamente (error)
         newCart[existingIndex] = {
             ...newCart[existingIndex],
             qty: newCart[existingIndex].qty + 1
         };
         return newCart;
       } else {
-        // Agregar nuevo item
         return [...prev, { ...item, cartItemId: uniqueId, qty: 1 }];
       }
     });
@@ -47,7 +38,6 @@ export function useCart() {
         const currentId = i.cartItemId || i.id;
         if (currentId === targetId) {
           const newQty = i.qty + delta;
-          // Si baja de 1 se elimina, sino devuelve objeto nuevo actualizado
           return newQty <= 0 ? null : { ...i, qty: newQty };
         }
         return i;
@@ -57,8 +47,11 @@ export function useCart() {
 
   const clearCart = () => setCart([]);
 
+  // --- FIX: MATEMÁTICAS DE PUNTO FLOTANTE ---
+  // Redondeamos siempre a 2 decimales para evitar errores de precisión tipo 15.000000001
   const cartTotal = useMemo(() => {
-    return cart.reduce((total, item) => total + (item.price * item.qty), 0);
+    const rawTotal = cart.reduce((total, item) => total + (item.price * item.qty), 0);
+    return Number(rawTotal.toFixed(2));
   }, [cart]);
 
   return { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal };

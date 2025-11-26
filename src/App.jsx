@@ -12,21 +12,13 @@ export default function App() {
   const { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal } = useCart();
   const { saveOrder, loading } = useOrders();
 
-  // Estados UI
   const [showTicket, setShowTicket] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
-  
-  // Estados Datos
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
-  // --- MANEJADOR DE CLICKS EN PRODUCTOS ---
   const handleProductClick = (product) => {
-    // LÓGICA REFINADA:
-    // Solo abrimos el modal si es una Pizza "Clásica" (para elegir tamaño e ingredientes).
-    // Las especialidades (que ya tienen ingredientes fijos) o cualquier otro producto se agregan directo.
-    
     const isClassicPizza = product.mainCategory === "Pizzas" && (
       product.pizzaType === "Clasica" || 
       product.name.toLowerCase().includes("clásica") || 
@@ -37,7 +29,6 @@ export default function App() {
       setSelectedProduct(product);
       setShowProductModal(true);
     } else {
-      // Especialidades, Bebidas, Hamburguesas, etc. -> Directo al carrito
       addToCart(product);
     }
   };
@@ -48,23 +39,20 @@ export default function App() {
     setSelectedProduct(null);
   };
 
-  // --- PROCESO DE COBRO ---
   const handleCheckout = (formData) => {
     setPendingOrderData(formData);
-    setTicketInfo({
-        orderId: null,
-        orderNumber: null,
-        items: [...cart]
-    });
+    setTicketInfo({ orderId: null, orderNumber: null, items: [...cart] });
     setShowTicket(true);
   };
 
-  // --- CONFIRMAR Y GUARDAR ---
+  // --- FIX: MANEJO DE ERRORES Y CONCURRENCIA ---
   const handleConfirmOrder = async () => {
-    if (!pendingOrderData) return;
+    // 1. Evitar doble envío si ya está cargando
+    if (loading || !pendingOrderData) return;
 
     try {
-      const finalTotal = cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
+      // 2. Recalcular total final saneado antes de enviar a DB
+      const finalTotal = Number(cart.reduce((acc, item) => acc + (item.price * item.qty), 0).toFixed(2));
       
       const orderPayload = {
         ...pendingOrderData,
@@ -80,12 +68,11 @@ export default function App() {
       });
 
       setTicketInfo(prev => ({ ...prev, orderId: id, orderNumber: number }));
-      
       alert(`¡Orden #${number} guardada con éxito!`);
       clearCart();
     } catch (error) {
-      console.error(error);
-      alert("Error al guardar la orden.");
+      console.error("Error crítico al guardar:", error);
+      alert("Error de conexión. No se pudo guardar la orden. Intenta de nuevo.");
     }
   };
 
@@ -97,15 +84,10 @@ export default function App() {
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
-      {/* Panel Izquierdo: Menú */}
       <div className="flex-1 min-h-0 h-full">
-        <MenuPanel 
-            menuItems={menuItems} 
-            onProductClick={handleProductClick} 
-        />
+        <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
       </div>
 
-      {/* Panel Derecho: Carrito */}
       <div className="w-full md:w-auto md:border-l md:border-slate-200">
         <CartPanel
           cart={cart}
@@ -119,7 +101,6 @@ export default function App() {
         />
       </div>
 
-      {/* Modales */}
       <ProductOptionsModal
         isOpen={showProductModal}
         product={selectedProduct}
