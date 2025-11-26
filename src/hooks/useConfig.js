@@ -2,39 +2,34 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
+// Configuración de respaldo mínima por si falla internet
+const FALLBACK_INGREDIENTS = [
+  "Jamón", "Pepperoni", "Salami", "Chorizo", "Pollo", "Tocino",
+  "Chile verde", "Cebolla", "Maíz", "Aceitunas", "Hongos", "Piña", "Jalapeño"
+];
+
 export function useConfig() {
-  const [config, setConfig] = useState(null);
+  const [pizzaIngredients, setPizzaIngredients] = useState(FALLBACK_INGREDIENTS);
+  const [prices, setPrices] = useState({ extraIngredient: 0.75, sizeDifference: 4.00 });
   const [loadingConfig, setLoadingConfig] = useState(true);
 
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        // Referencia al documento 'global_options' en la colección 'configuration'
         const docRef = doc(db, "configuration", "global_options");
         const snapshot = await getDoc(docRef);
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          
-          // Estructuramos la data para que la app la entienda fácil
-          setConfig({
-            ingredients: data.ingredients || [],
-            sides: data.sides || [],
-            drinks: data.drinks || [],
-            rules: {
-              ingredientPrice: data.prices?.extraIngredient || 0,
-              sizes: {
-                Personal: { label: "Personal", priceModifier: 0 },
-                // Aquí usamos el valor de la DB para la diferencia de precio
-                Grande: { label: "Gigante", priceModifier: data.prices?.sizeDifference || 0 }
-              }
-            }
+          // Solo cargamos ingredientes globales y reglas de precios
+          if (data.ingredients) setPizzaIngredients(data.ingredients);
+          if (data.prices) setPrices({
+             extraIngredient: data.prices.extraIngredient || 0.75,
+             sizeDifference: data.prices.sizeDifference || 4.00
           });
-        } else {
-          console.error("FATAL: No se encontró la configuración en Firebase (configuration/global_options)");
         }
       } catch (error) {
-        console.error("Error descargando configuración:", error);
+        console.warn("Usando configuración local por error de conexión.");
       } finally {
         setLoadingConfig(false);
       }
@@ -43,5 +38,5 @@ export function useConfig() {
     fetchConfig();
   }, []);
 
-  return { config, loadingConfig };
+  return { pizzaIngredients, prices, loadingConfig };
 }

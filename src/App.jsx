@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useMenu } from "./hooks/useMenu";
 import { useCart } from "./hooks/useCart";
 import { useOrders } from "./hooks/useOrders";
-import { useConfig } from "./hooks/useConfig"; // <--- Nuevo Hook
+import { useConfig } from "./hooks/useConfig";
 import MenuPanel from "./components/MenuPanel";
 import CartPanel from "./components/CartPanel";
 import TicketModal from "./components/TicketModal";
@@ -13,8 +13,8 @@ export default function App() {
   const { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal } = useCart();
   const { saveOrder, loading: loadingOrder } = useOrders();
   
-  // Cargar configuración global desde Firebase
-  const { config, loadingConfig } = useConfig();
+  // Cargamos ingredientes globales y precios base
+  const { pizzaIngredients, prices, loadingConfig } = useConfig();
 
   const [showTicket, setShowTicket] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
@@ -22,22 +22,20 @@ export default function App() {
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
-  // Pantalla de Carga Inicial (Bloquea la app hasta tener ingredientes y precios)
   if (loadingConfig) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-100 text-slate-500 font-bold">
-        Cargando configuración del sistema...
-      </div>
-    );
+    return <div className="h-screen w-full flex items-center justify-center bg-slate-100 text-slate-500 font-bold">Cargando sistema...</div>;
   }
 
   const handleProductClick = (product) => {
-    const needsConfig = 
-        product.mainCategory === "Pizzas" || 
-        product.mainCategory === "Platos" || 
-        product.name.toLowerCase().includes("combo");
+    // Analizamos si el producto requiere configuración
+    // 1. Es Pizza Clásica
+    const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
+    // 2. Es un Combo con opciones definidas en DB
+    const isComboWithChoices = product.comboOptions && (product.comboOptions.hasDrink || product.comboOptions.hasSide);
+    // 3. Es una pizza especialidad (opcional: agregar ingredientes extra)
+    const isSpecialtyPizza = product.mainCategory === "Pizzas" && !isClassic;
 
-    if (needsConfig) {
+    if (isClassic || isComboWithChoices || isSpecialtyPizza) {
       setSelectedProduct(product);
       setShowProductModal(true);
     } else {
@@ -62,7 +60,6 @@ export default function App() {
 
     try {
       const finalTotal = Number(cart.reduce((acc, item) => acc + (item.price * item.qty), 0).toFixed(2));
-      
       const orderPayload = {
         ...pendingOrderData,
         total: finalTotal,
@@ -71,35 +68,21 @@ export default function App() {
         customerName: pendingOrderData.customerName || "Mostrador"
       };
 
-      const { number, id } = await saveOrder({ 
-        orderData: orderPayload, 
-        cartItems: cart 
-      });
-
+      const { number, id } = await saveOrder({ orderData: orderPayload, cartItems: cart });
       setTicketInfo(prev => ({ ...prev, orderId: id, orderNumber: number }));
-      alert(`¡Orden #${number} guardada con éxito!`);
+      alert(`¡Orden #${number} guardada!`);
       clearCart();
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error de conexión.");
+      console.error(error);
+      alert("Error guardando orden.");
     }
-  };
-
-  const handleCloseTicket = () => {
-    setShowTicket(false);
-    setTicketInfo({ orderId: null, orderNumber: null, items: [] });
-    setPendingOrderData(null);
   };
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden">
       <div className="flex-1 min-h-0 h-full">
-        <MenuPanel 
-            menuItems={menuItems} 
-            onProductClick={handleProductClick} 
-        />
+        <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
       </div>
-
       <div className="w-full md:w-auto md:border-l md:border-slate-200">
         <CartPanel
           cart={cart}
@@ -112,19 +95,17 @@ export default function App() {
           loadingOrder={loadingOrder}
         />
       </div>
-
-      {/* Pasamos la configuración global al modal */}
       <ProductOptionsModal
         isOpen={showProductModal}
         product={selectedProduct}
+        ingredientsList={pizzaIngredients} // Lista maestra de ingredientes
+        prices={prices} // Reglas de precios globales
         onClose={() => setShowProductModal(false)}
         onConfirm={handleConfirmModal}
-        globalConfig={config} // <--- AQUÍ PASAMOS LA DATA DE FIREBASE
       />
-
       <TicketModal
         isOpen={showTicket}
-        onClose={handleCloseTicket}
+        onClose={() => { setShowTicket(false); setPendingOrderData(null); }}
         onConfirm={handleConfirmOrder}
         ticketItems={ticketInfo.items}
         orderData={pendingOrderData || {}}
