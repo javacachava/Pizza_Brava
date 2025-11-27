@@ -1,7 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import ProductOptionsModal from '../ProductOptionsModal';
+// CORRECCIÓN AQUÍ: Ruta correcta a la carpeta components
+import ProductOptionsModal from '../components/ProductOptionsModal';
 
 // Mock de Configuración Global (Lo que viene de Firebase)
 const mockGlobalConfig = {
@@ -67,6 +68,7 @@ describe('ProductOptionsModal Component', () => {
     );
 
     // Click en Gigante (+ $5.00)
+    // Nota: Buscamos por el texto que definimos en el mock "Gigante"
     const btnGigante = screen.getByText(/Gigante/i);
     fireEvent.click(btnGigante);
 
@@ -115,7 +117,7 @@ describe('ProductOptionsModal Component', () => {
       />
     );
 
-    // Intentar agregar sin ingredientes (Requiere 2)
+    // Intentar agregar sin ingredientes (Requiere 2 según el mock)
     const btnAgregar = screen.getByText(/Agregar/i);
     fireEvent.click(btnAgregar);
 

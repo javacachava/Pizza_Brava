@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import { useCart } from '../useCart';
+// CORRECCIÓN AQUÍ: Ruta correcta a la carpeta hooks
+import { useCart } from '../hooks/useCart';
 
 describe('useCart Hook - Lógica de Negocio', () => {
   
@@ -51,7 +52,7 @@ describe('useCart Hook - Lógica de Negocio', () => {
     const { result } = renderHook(() => useCart());
 
     const pizzaA = { ...pizzaPersonal, cartItemId: 'id-A' };
-    const pizzaB = { ...pizzaPersonal, cartItemId: 'id-B' }; // Misma pizza, otra configuración (teóricamente)
+    const pizzaB = { ...pizzaPersonal, cartItemId: 'id-B' }; // Misma pizza, otra configuración
 
     act(() => {
       result.current.addToCart(pizzaA);
