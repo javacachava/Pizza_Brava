@@ -10,7 +10,7 @@ service cloud.firestore {
              request.auth.token.active == true;
     }
 
-    // Verifica roles específicos (usando los claims que creamos en el paso 1)
+    // Verifica roles específicos
     function isAdmin() {
       return isActive() && request.auth.token.role == 'admin';
     }
@@ -21,30 +21,35 @@ service cloud.firestore {
 
     // --- REGLAS DE COLECCIONES ---
 
-// Colección de Usuarios
+    // 1. Colección de Usuarios
     match /users/{userId} {
+      // ✅ CORREGIDO: El usuario puede leer su propio perfil O un admin puede leer todos
       allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
       allow write: if isAdmin(); 
     }
-  
-    // Órdenes
+
+    // 2. Contadores (PARA QUE FUNCIONE useOrders)
+    match /counters/{counterId} {
+      // Necesario para generar el número de orden consecutivo
+      allow read, write: if isStaff();
+    }
+
+    // 3. Órdenes
     match /orders/{orderId} {
-      // Solo personal activo puede leer/escribir órdenes
       allow read, write: if isStaff();
       
-      // Subcolección de items
       match /items/{itemId} {
         allow read, write: if isStaff();
       }
     }
 
-    // Menú
+    // 4. Menú
     match /menuItems/{itemId} {
-      allow read: if isStaff(); // O allow read: if true; si es menú público
+      allow read: if isStaff(); 
       allow write: if isAdmin();
     }
     
-    // Configuración
+    // 5. Configuración
     match /configuration/{configId} {
       allow read: if isStaff();
       allow write: if isAdmin();
