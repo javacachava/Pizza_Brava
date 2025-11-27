@@ -3,7 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell 
 } from "recharts";
-import { Calendar, Download, TrendingUp, DollarSign, ShoppingBag } from "lucide-react";
+import { Download, TrendingUp, DollarSign, ShoppingBag } from "lucide-react";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import jsPDF from "jspdf";
@@ -206,10 +206,10 @@ export default function AnalyticsPanel() {
       {/* Gráficos */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Ventas por Día */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 min-w-0">
           <h3 className="text-lg font-bold text-slate-700 mb-4">Tendencia de Ventas</h3>
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <BarChart data={stats.chartDataDay}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
@@ -222,10 +222,10 @@ export default function AnalyticsPanel() {
         </div>
 
         {/* Categorías */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 min-w-0">
           <h3 className="text-lg font-bold text-slate-700 mb-4">Ventas por Categoría</h3>
           <div className="h-64 w-full flex justify-center">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <PieChart>
                 <Pie
                   data={stats.chartDataCat}

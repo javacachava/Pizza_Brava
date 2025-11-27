@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key
+  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key, Shield // <--- AQUÍ FALTABA SHIELD
 } from "lucide-react";
 import { 
   doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
@@ -12,7 +12,7 @@ import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 
-// Config para app secundaria
+// Configuración para la "App Secundaria" (Creación de usuarios)
 const firebaseConfig = {
   apiKey: "AIzaSyBrDyjHHE8Fut5xJWnxexj6rtax-Jsvdqs",
   authDomain: "pizza-brava-dev.firebaseapp.com",
@@ -115,22 +115,16 @@ export default function AdminPanel({ onLogout }) {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name?.trim()) return alert("El nombre del producto es obligatorio.");
+    if (!formData.name?.trim()) return alert("El nombre es obligatorio.");
     if (formData.price === "" || formData.price === null) return alert("El precio es obligatorio.");
-
-    const priceValue = parseFloat(formData.price);
-    if (isNaN(priceValue) || priceValue < 0) return alert("Precio inválido.");
-
-    let stockValue = null;
-    if (formData.stock !== "") {
-        stockValue = parseInt(formData.stock);
-        if (isNaN(stockValue) || stockValue < 0) return alert("Stock inválido.");
-    }
+    
+    const priceVal = parseFloat(formData.price);
+    if (isNaN(priceVal) || priceVal < 0) return alert("Precio inválido.");
 
     const productData = {
       name: formData.name.trim(),
-      price: priceValue,
-      stock: stockValue,
+      price: priceVal,
+      stock: formData.stock !== "" ? parseInt(formData.stock) : null,
       mainCategory: formData.mainCategory,
       station: formData.station,
       isActive: formData.isActive,
@@ -176,17 +170,13 @@ export default function AdminPanel({ onLogout }) {
     setLoadingUsers(true);
     try {
       const q = await getDocs(collection(db, "users"));
-      // FIX: Asegurar que active tenga valor por defecto si viene undefined
       const userList = q.docs.map(doc => ({ 
-          id: doc.id, 
-          ...doc.data(),
-          active: doc.data().active ?? true // Default true si no existe el campo
+        id: doc.id, 
+        ...doc.data(),
+        active: doc.data().active ?? true 
       }));
       setUsers(userList);
-    } catch (e) { 
-        console.error("Error cargando usuarios:", e);
-        alert("Error al cargar lista de usuarios.");
-    }
+    } catch (e) { console.error(e); }
     finally { setLoadingUsers(false); }
   };
 
@@ -219,18 +209,13 @@ export default function AdminPanel({ onLogout }) {
 
     } catch (error) {
         console.error("Error creando usuario:", error);
-        let msg = "Error al crear usuario.";
-        if (error.code === 'auth/email-already-in-use') msg = "El correo ya está registrado.";
-        alert(msg);
+        alert("Error al crear usuario. Revisa que el correo no exista.");
     }
   };
 
   const toggleUserStatus = async (user) => {
     if (user.role === 'admin') return alert("No puedes desactivar a un administrador.");
-    
-    // Invertir estado actual
     const newStatus = !user.active;
-    
     if (!window.confirm(`¿${newStatus ? 'Reactivar' : 'Bloquear'} a ${user.name}?`)) return;
 
     try {
@@ -241,19 +226,13 @@ export default function AdminPanel({ onLogout }) {
 
   const handleDeleteUser = async (user) => {
     if (user.role === 'admin') return alert("No puedes eliminar a un administrador.");
-    
-    if (!window.confirm(`¿ESTÁS SEGURO? Eliminarás permanentemente a ${user.name}.\nEl usuario ya no podrá acceder.`)) return;
+    if (!window.confirm(`¿Eliminar permanentemente a ${user.name}?`)) return;
 
     try {
-        // Borramos el documento de Firestore.
-        // El usuario quedará en Auth pero sin permisos ni rol, por lo que el login fallará.
         await deleteDoc(doc(db, "users", user.id));
         setUsers(users.filter(u => u.id !== user.id));
-        alert("Usuario eliminado del sistema.");
-    } catch (e) {
-        console.error(e);
-        alert("Error al eliminar usuario.");
-    }
+        alert("Usuario eliminado.");
+    } catch (e) { alert("Error al eliminar."); }
   };
 
   // --- LOGICA GLOBAL ---
@@ -402,6 +381,7 @@ export default function AdminPanel({ onLogout }) {
                     </div>
                 )}
 
+                {/* Tabla Productos */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-slate-100 text-slate-500 uppercase font-bold">
@@ -439,7 +419,6 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
-        {/* --- VISTA: USUARIOS (CORREGIDA) --- */}
         {activeTab === 'users' && (
             <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex justify-between items-center">
@@ -531,7 +510,6 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
-        {/* --- VISTA: CONFIG GLOBAL --- */}
         {activeTab === 'config' && (
           <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex justify-between items-center">
