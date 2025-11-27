@@ -21,14 +21,12 @@ service cloud.firestore {
 
     // --- REGLAS DE COLECCIONES ---
 
-    // Colección de Usuarios
+// Colección de Usuarios
     match /users/{userId} {
-      // Cualquiera autenticado puede leer su propio perfil para ver si está activo
-      allow read: if request.auth != null && request.auth.uid == userId;
-      // Solo el admin puede crear o modificar usuarios (como en tu AdminPanel)
+      allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
       allow write: if isAdmin(); 
     }
-
+  
     // Órdenes
     match /orders/{orderId} {
       // Solo personal activo puede leer/escribir órdenes

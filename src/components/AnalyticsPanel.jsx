@@ -17,7 +17,26 @@ export default function AnalyticsPanel() {
   const [dateRange, setDateRange] = useState("week"); // 'week' | 'month'
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+{/* ... dentro del componente AnalyticsPanel ... */}
 
+{/* Envuelve los gráficos en una condición para asegurar que existen datos */}
+<div className="bg-white p-6 ...">
+  <h3 className="...">Tendencia de Ventas</h3>
+  <div className="h-64 w-full">
+     {/* Agrega esta validación: */}
+     {stats.chartDataDay.length > 0 ? (
+        <ResponsiveContainer width="100%" height="100%">
+           <BarChart data={stats.chartDataDay}>
+              {/* ... contenido del gráfico ... */}
+           </BarChart>
+        </ResponsiveContainer>
+     ) : (
+        <div className="h-full flex items-center justify-center text-slate-400">
+           Sin datos para mostrar
+        </div>
+     )}
+  </div>
+</div>
   // --- 1. CARGA DE DATOS ---
   useEffect(() => {
     const fetchSalesData = async () => {
