@@ -13,15 +13,14 @@ import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 import { toast } from "react-hot-toast";
 
-// Configuración para la "App Secundaria" (Creación de usuarios)
 const firebaseConfig = {
-  apiKey: "AIzaSyBrDyjHHE8Fut5xJWnxexj6rtax-Jsvdqs",
-  authDomain: "pizza-brava-dev.firebaseapp.com",
-  projectId: "pizza-brava-dev",
-  storageBucket: "pizza-brava-dev.firebasestorage.app",
-  messagingSenderId: "118092051274",
-  appId: "1:118092051274:web:17c2c7bc778079ca3a87b3",
-  measurementId: "G-2RYZ83SFSY"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const CATEGORY_OPTIONS = [
