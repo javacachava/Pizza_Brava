@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, CheckSquare, Square, ChefHat, ChevronRight, UtensilsCrossed, Wine } from "lucide-react";
 
-// 1. Agregamos globalConfig a las props
 export default function ProductOptionsModal({ 
   isOpen, 
   product, 
@@ -9,16 +8,35 @@ export default function ProductOptionsModal({
   onConfirm, 
   ingredientsList, 
   prices, 
-  globalConfig // Nueva prop
+  globalConfig 
 }) {
   if (!isOpen || !product) return null;
 
-  // 2. LÓGICA DE RESPALDO (FALLBACK)
-  // Si ingredientsList es undefined, usamos globalConfig. Si no, array vacío.
+  // 1. NORMALIZACIÓN DE DATOS (FIX: Mapeo correcto de precios)
+  const effectivePrices = useMemo(() => {
+    // Origen de los datos: props directas o config global
+    const source = prices || globalConfig?.rules || {};
+
+    // Caso A: Formato plano (si ya viene procesado con keys como sizeDifference)
+    if (source.sizeDifference !== undefined) {
+      return {
+        extraIngredient: source.extraIngredient || 0,
+        sizeDifference: source.sizeDifference || 0
+      };
+    }
+
+    // Caso B: Formato Base de Datos / Mock (anidado)
+    // Mapeamos 'ingredientPrice' -> 'extraIngredient'
+    // Mapeamos 'sizes.Grande.priceModifier' -> 'sizeDifference'
+    return {
+      extraIngredient: source.ingredientPrice || 0,
+      sizeDifference: source.sizes?.Grande?.priceModifier || 0
+    };
+  }, [prices, globalConfig]);
+
   const effectiveIngredients = ingredientsList || globalConfig?.ingredients || [];
-  
-  // Si prices es undefined, usamos globalConfig. Si no, valores en cero para evitar crash.
-  const effectivePrices = prices || globalConfig?.rules || { extraIngredient: 0, sizeDifference: 0 };
+
+  // ... RESTO DEL CÓDIGO (Sin cambios, pero asegúrate de usar effectivePrices abajo) ...
 
   // 3. DETERMINAR TIPO DE PRODUCTO Y CONFIGURACIÓN
   const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
@@ -49,18 +67,16 @@ export default function ProductOptionsModal({
   const currentPrice = useMemo(() => {
     let price = product.price;
     
-    // CORRECCIÓN: Usamos effectivePrices en lugar de prices
     if (isClassic && size === "Grande") {
+        // AHORA ESTO FUNCIONARÁ PORQUE sizeDifference SIEMPRE SERÁ UN NÚMERO
         price += effectivePrices.sizeDifference;
     }
     return price;
-  }, [product, size, isClassic, effectivePrices]); // Dependencia actualizada
+  }, [product, size, isClassic, effectivePrices]);
 
   // Ingredientes extra
   const includedIng = isClassic ? 2 : 0;
   const extraCount = Math.max(0, selectedIngredients.length - includedIng);
-  
-  // CORRECCIÓN: Usamos effectivePrices aqui también
   const extraCost = extraCount * effectivePrices.extraIngredient;
   
   const finalPrice = currentPrice + extraCost;
@@ -111,7 +127,6 @@ export default function ProductOptionsModal({
 
         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-6">
           
-          {/* SECCIÓN 1: TAMAÑO */}
           {isClassic && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tamaño</h4>
@@ -120,14 +135,13 @@ export default function ProductOptionsModal({
                     Personal
                 </button>
                 <button onClick={() => setSize("Grande")} className={`flex-1 py-3 rounded-lg border text-sm font-bold transition-all ${size === "Grande" ? "bg-amber-600 text-white shadow-md" : "bg-white"}`}>
-                    {/* CORRECCIÓN: Usamos effectivePrices */}
+                    {/* AQUI ESTABA EL ERROR ORIGINAL QUE YA NO OCURRIRÁ */}
                     Gigante (+${effectivePrices.sizeDifference.toFixed(2)})
                 </button>
               </div>
             </div>
           )}
 
-          {/* SECCIÓN 2: OPCIONES DEL COMBO */}
           {(comboOpts.hasSide || comboOpts.hasDrink) && (
             <div className="grid grid-cols-1 gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
               {comboOpts.hasSide && comboOpts.sideChoices?.length > 0 && (
@@ -162,7 +176,6 @@ export default function ProductOptionsModal({
             </div>
           )}
 
-          {/* SECCIÓN 3: INGREDIENTES */}
           {isPizza && (
             <div className="space-y-3">
               <div className="flex justify-between items-end">
@@ -177,7 +190,6 @@ export default function ProductOptionsModal({
               </div>
               
               <div className="grid grid-cols-2 gap-2">
-                {/* CORRECCIÓN CRÍTICA: Iteramos sobre effectiveIngredients */}
                 {effectiveIngredients.map((ing) => {
                   const isSelected = selectedIngredients.includes(ing);
                   return (
