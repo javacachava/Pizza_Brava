@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, Shield, Key
+  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key
 } from "lucide-react";
 import { 
   doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
@@ -12,7 +12,7 @@ import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 
-// Necesitamos la config aquí para crear la instancia temporal
+// Configuración para la "App Secundaria" (Creación de usuarios)
 const firebaseConfig = {
   apiKey: "AIzaSyBrDyjHHE8Fut5xJWnxexj6rtax-Jsvdqs",
   authDomain: "pizza-brava-dev.firebaseapp.com",
@@ -35,7 +35,22 @@ export default function AdminPanel({ onLogout }) {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({}); // Se inicializa en handleOpen
+  
+  const initialFormState = {
+    id: null,
+    name: "",
+    price: "",
+    stock: "", 
+    mainCategory: "Pizzas",
+    station: "cocina",
+    isActive: true,
+    isClassic: false,
+    isCombo: false,
+    comboHasDrink: true,
+    comboHasSide: true
+  };
+  
+  const [formData, setFormData] = useState(initialFormState);
 
   // --- ESTADOS USUARIOS ---
   const [users, setUsers] = useState([]);
@@ -48,21 +63,6 @@ export default function AdminPanel({ onLogout }) {
   const [drinks, setDrinks] = useState([]);
   const [sides, setSides] = useState([]);
   const [prices, setPrices] = useState({ extraIngredient: 0, sizeDifference: 0 });
-
-  // Inicialización
-  const initialFormState = {
-    id: null,
-    name: "",
-    price: "",
-    stock: "",
-    mainCategory: "Pizzas",
-    station: "cocina",
-    isActive: true,
-    isClassic: false,
-    isCombo: false,
-    comboHasDrink: true,
-    comboHasSide: true
-  };
 
   useEffect(() => {
     if (config) {
@@ -81,9 +81,7 @@ export default function AdminPanel({ onLogout }) {
     if (activeTab === "users") fetchUsers();
   }, [activeTab]);
 
-  // ==========================
-  // LÓGICA DE MENÚ
-  // ==========================
+  // --- LOGICA PRODUCTOS ---
   const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
@@ -101,7 +99,7 @@ export default function AdminPanel({ onLogout }) {
         id: product.id,
         name: product.name,
         price: product.price,
-        stock: product.stock || "",
+        stock: product.stock !== undefined && product.stock !== null ? product.stock : "",
         mainCategory: product.mainCategory,
         station: product.station || "cocina",
         isActive: product.isActive !== false,
@@ -116,13 +114,26 @@ export default function AdminPanel({ onLogout }) {
     setIsEditing(true);
   };
 
+  // --- VALIDACIÓN ESTRICTA (DEFENSA EN PROFUNDIDAD NIVEL 1) ---
   const handleSaveProduct = async () => {
-    if (!formData.name || !formData.price) return alert("Datos incompletos");
+    // 1. Validar campos obligatorios
+    if (!formData.name?.trim()) return alert("El nombre del producto es obligatorio.");
+    if (formData.price === "" || formData.price === null) return alert("El precio es obligatorio.");
+
+    // 2. Validar tipos de datos
+    const priceValue = parseFloat(formData.price);
+    if (isNaN(priceValue) || priceValue < 0) return alert("El precio debe ser un número válido mayor o igual a 0.");
+
+    let stockValue = null;
+    if (formData.stock !== "") {
+        stockValue = parseInt(formData.stock);
+        if (isNaN(stockValue) || stockValue < 0) return alert("El stock debe ser un número entero positivo.");
+    }
 
     const productData = {
-      name: formData.name,
-      price: parseFloat(formData.price),
-      stock: formData.stock ? parseInt(formData.stock) : null,
+      name: formData.name.trim(),
+      price: priceValue, // Guardamos número, no string
+      stock: stockValue,
       mainCategory: formData.mainCategory,
       station: formData.station,
       isActive: formData.isActive,
@@ -138,12 +149,17 @@ export default function AdminPanel({ onLogout }) {
     try {
       if (formData.id) {
         await updateDoc(doc(db, "menuItems", formData.id), productData);
+        alert("Producto actualizado correctamente.");
       } else {
         await addDoc(collection(db, "menuItems"), productData);
+        alert("Producto creado correctamente.");
       }
       setIsEditing(false);
       fetchProducts();
-    } catch (e) { alert("Error al guardar"); }
+    } catch (e) { 
+        console.error(e);
+        alert("Error al guardar en base de datos. Verifica tu conexión o permisos."); 
+    }
   };
 
   const handleToggleActive = async (product) => {
@@ -161,9 +177,7 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error al eliminar"); }
   };
 
-  // ==========================
-  // LÓGICA DE USUARIOS (CRÍTICA)
-  // ==========================
+  // --- LOGICA USUARIOS ---
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -178,17 +192,13 @@ export default function AdminPanel({ onLogout }) {
     e.preventDefault();
     if (newUser.password.length < 6) return alert("La contraseña debe tener al menos 6 caracteres.");
 
-    // TRUCO DE INGENIERÍA:
-    // Inicializamos una app secundaria de Firebase para crear el usuario SIN desloguear al admin actual.
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
     try {
-        // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
         const uid = userCredential.user.uid;
 
-        // 2. Crear perfil en Firestore
         await setDoc(doc(db, "users", uid), {
             email: newUser.email,
             name: newUser.name,
@@ -197,11 +207,10 @@ export default function AdminPanel({ onLogout }) {
             createdAt: new Date()
         });
 
-        // 3. Limpieza
         await signOut(secondaryAuth);
         deleteApp(secondaryApp);
 
-        alert(`Usuario ${newUser.name} creado exitosamente.`);
+        alert(`Usuario ${newUser.name} creado.`);
         setIsCreatingUser(false);
         setNewUser({ name: "", email: "", password: "", role: "recepcion" });
         fetchUsers();
@@ -226,9 +235,7 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error actualizando usuario."); }
   };
 
-  // ==========================
-  // LÓGICA GLOBAL
-  // ==========================
+  // --- LOGICA GLOBAL ---
   const handleSaveGlobalConfig = async () => {
     try {
       const docRef = doc(db, "configuration", "global_options");
@@ -243,7 +250,6 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error al guardar."); }
   };
 
-  // Componente ListEditor
   const ListEditor = ({ title, items, setItems }) => {
     const [val, setVal] = useState("");
     return (
@@ -270,7 +276,6 @@ export default function AdminPanel({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
-      {/* Navbar */}
       <div className="bg-slate-900 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center shadow-md gap-4">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <Settings className="text-amber-400" /> Admin Panel
@@ -295,10 +300,8 @@ export default function AdminPanel({ onLogout }) {
       </div>
 
       <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
-        
         {activeTab === 'analytics' && <AnalyticsPanel />}
 
-        {/* --- GESTIÓN DE MENÚ --- */}
         {activeTab === 'menu' && (
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -308,7 +311,6 @@ export default function AdminPanel({ onLogout }) {
                     </button>
                 </div>
 
-                {/* Modal Producto (Sin cambios lógicos, solo render) */}
                 {isEditing && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -319,11 +321,11 @@ export default function AdminPanel({ onLogout }) {
                             <div className="p-6 space-y-4 overflow-y-auto">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">Nombre</label>
-                                        <input type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Nombre *</label>
+                                        <input type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej: Pizza..."/>
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">Precio ($)</label>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Precio ($) *</label>
                                         <input type="number" className="w-full border p-2 rounded" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})}/>
                                     </div>
                                 </div>
@@ -378,10 +380,8 @@ export default function AdminPanel({ onLogout }) {
                     </div>
                 )}
 
-                {/* Tabla Productos */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                     {/* ... (Tabla idéntica al código previo) ... */}
-                     <table className="w-full text-sm text-left">
+                        <table className="w-full text-sm text-left">
                             <thead className="bg-slate-100 text-slate-500 uppercase font-bold">
                                 <tr>
                                     <th className="px-6 py-3">Nombre</th>
@@ -417,7 +417,6 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
-        {/* --- VISTA: USUARIOS (NUEVA Y COMPLETA) --- */}
         {activeTab === 'users' && (
             <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex justify-between items-center">
@@ -427,7 +426,6 @@ export default function AdminPanel({ onLogout }) {
                     </button>
                 </div>
 
-                {/* Modal Crear Usuario */}
                 {isCreatingUser && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
@@ -467,7 +465,6 @@ export default function AdminPanel({ onLogout }) {
                     </div>
                 )}
 
-                {/* Lista de Usuarios */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {users.map(user => (
                         <div key={user.id} className={`bg-white p-5 rounded-xl shadow-sm border flex justify-between items-center ${user.active === false ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
@@ -502,13 +499,12 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
-        {/* --- VISTA: CONFIG GLOBAL (Igual que antes) --- */}
         {activeTab === 'config' && (
           <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Configuración Global</h2>
                 <button onClick={handleSaveGlobalConfig} className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 shadow-lg flex gap-2 items-center">
-                    <Save size={18}/> Guardar Globales
+                    <Save size={18}/> Guardar
                 </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
