@@ -1,14 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert 
+  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, Shield, Key
 } from "lucide-react";
 import { 
-  doc, updateDoc, collection, addDoc, deleteDoc, getDocs 
+  doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
 } from "firebase/firestore";
+import { initializeApp, deleteApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
+
+// Necesitamos la config aquí para crear la instancia temporal
+const firebaseConfig = {
+  apiKey: "AIzaSyBrDyjHHE8Fut5xJWnxexj6rtax-Jsvdqs",
+  authDomain: "pizza-brava-dev.firebaseapp.com",
+  projectId: "pizza-brava-dev",
+  storageBucket: "pizza-brava-dev.firebasestorage.app",
+  messagingSenderId: "118092051274",
+  appId: "1:118092051274:web:17c2c7bc778079ca3a87b3",
+  measurementId: "G-2RYZ83SFSY"
+};
 
 const CATEGORY_OPTIONS = [
   "Pizzas", "Bebidas", "Hamburguesas", "Birrias", "Platos", "Entradas", "Complementos"
@@ -22,13 +35,26 @@ export default function AdminPanel({ onLogout }) {
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  
-  // Formulario Producto
+  const [formData, setFormData] = useState({}); // Se inicializa en handleOpen
+
+  // --- ESTADOS USUARIOS ---
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "recepcion" });
+
+  // --- ESTADOS CONFIG GLOBAL ---
+  const [ingredients, setIngredients] = useState([]);
+  const [drinks, setDrinks] = useState([]);
+  const [sides, setSides] = useState([]);
+  const [prices, setPrices] = useState({ extraIngredient: 0, sizeDifference: 0 });
+
+  // Inicialización
   const initialFormState = {
     id: null,
     name: "",
     price: "",
-    stock: "", // NUEVO CAMPO STOCK
+    stock: "",
     mainCategory: "Pizzas",
     station: "cocina",
     isActive: true,
@@ -37,18 +63,6 @@ export default function AdminPanel({ onLogout }) {
     comboHasDrink: true,
     comboHasSide: true
   };
-  
-  const [formData, setFormData] = useState(initialFormState);
-
-  // --- ESTADOS USUARIOS (NUEVO) ---
-  const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-
-  // --- ESTADOS CONFIG GLOBAL ---
-  const [ingredients, setIngredients] = useState([]);
-  const [drinks, setDrinks] = useState([]);
-  const [sides, setSides] = useState([]);
-  const [prices, setPrices] = useState({ extraIngredient: 0, sizeDifference: 0 });
 
   useEffect(() => {
     if (config) {
@@ -62,13 +76,14 @@ export default function AdminPanel({ onLogout }) {
     }
   }, [config]);
 
-  // Carga diferida según pestaña
   useEffect(() => {
     if (activeTab === "menu") fetchProducts();
     if (activeTab === "users") fetchUsers();
   }, [activeTab]);
 
-  // --- LOGICA PRODUCTOS ---
+  // ==========================
+  // LÓGICA DE MENÚ
+  // ==========================
   const fetchProducts = async () => {
     setLoadingProducts(true);
     try {
@@ -86,7 +101,7 @@ export default function AdminPanel({ onLogout }) {
         id: product.id,
         name: product.name,
         price: product.price,
-        stock: product.stock || "", // Cargar stock si existe
+        stock: product.stock || "",
         mainCategory: product.mainCategory,
         station: product.station || "cocina",
         isActive: product.isActive !== false,
@@ -107,7 +122,6 @@ export default function AdminPanel({ onLogout }) {
     const productData = {
       name: formData.name,
       price: parseFloat(formData.price),
-      // Guardamos stock como número si existe, o null si no se usa
       stock: formData.stock ? parseInt(formData.stock) : null,
       mainCategory: formData.mainCategory,
       station: formData.station,
@@ -132,6 +146,13 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error al guardar"); }
   };
 
+  const handleToggleActive = async (product) => {
+    try {
+      await updateDoc(doc(db, "menuItems", product.id), { isActive: !product.isActive });
+      setProducts(products.map(p => p.id === product.id ? { ...p, isActive: !p.isActive } : p));
+    } catch (e) { console.error(e); }
+  };
+
   const handleDeleteProduct = async (id) => {
     if(!window.confirm("¿Eliminar este producto?")) return;
     try {
@@ -140,7 +161,9 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error al eliminar"); }
   };
 
-  // --- LOGICA USUARIOS ---
+  // ==========================
+  // LÓGICA DE USUARIOS (CRÍTICA)
+  // ==========================
   const fetchUsers = async () => {
     setLoadingUsers(true);
     try {
@@ -151,28 +174,61 @@ export default function AdminPanel({ onLogout }) {
     finally { setLoadingUsers(false); }
   };
 
-  const toggleUserStatus = async (user) => {
-    // Evitar que el admin se desactive a sí mismo
-    if (user.role === 'admin') return alert("No puedes desactivar a un administrador.");
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (newUser.password.length < 6) return alert("La contraseña debe tener al menos 6 caracteres.");
 
-    const newStatus = !user.active; // Si no existe active, asume false (undefined es falsy), pero mejor asumimos true por defecto en logica inversa
-    // Corrección lógica: Si user.active es undefined, es true (activo). Queremos pasar a false.
-    const currentStatus = user.active !== false; // True por defecto
-    
-    if (!window.confirm(`¿${currentStatus ? 'Desactivar' : 'Reactivar'} acceso a ${user.email}?`)) return;
+    // TRUCO DE INGENIERÍA:
+    // Inicializamos una app secundaria de Firebase para crear el usuario SIN desloguear al admin actual.
+    const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+    const secondaryAuth = getAuth(secondaryApp);
 
     try {
-      await updateDoc(doc(db, "users", user.id), {
-        active: !currentStatus
-      });
-      // Actualizar UI
-      setUsers(users.map(u => u.id === user.id ? { ...u, active: !currentStatus } : u));
-    } catch (e) {
-      alert("Error actualizando usuario.");
+        // 1. Crear usuario en Authentication
+        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, newUser.email, newUser.password);
+        const uid = userCredential.user.uid;
+
+        // 2. Crear perfil en Firestore
+        await setDoc(doc(db, "users", uid), {
+            email: newUser.email,
+            name: newUser.name,
+            role: newUser.role,
+            active: true,
+            createdAt: new Date()
+        });
+
+        // 3. Limpieza
+        await signOut(secondaryAuth);
+        deleteApp(secondaryApp);
+
+        alert(`Usuario ${newUser.name} creado exitosamente.`);
+        setIsCreatingUser(false);
+        setNewUser({ name: "", email: "", password: "", role: "recepcion" });
+        fetchUsers();
+
+    } catch (error) {
+        console.error("Error creando usuario:", error);
+        let msg = "Error al crear usuario.";
+        if (error.code === 'auth/email-already-in-use') msg = "El correo ya está registrado.";
+        alert(msg);
     }
   };
 
-  // --- LOGICA GLOBAL ---
+  const toggleUserStatus = async (user) => {
+    if (user.role === 'admin') return alert("No puedes desactivar a un administrador.");
+    const currentStatus = user.active !== false;
+    
+    if (!window.confirm(`¿${currentStatus ? 'Desactivar' : 'Reactivar'} a ${user.name}?`)) return;
+
+    try {
+      await updateDoc(doc(db, "users", user.id), { active: !currentStatus });
+      setUsers(users.map(u => u.id === user.id ? { ...u, active: !currentStatus } : u));
+    } catch (e) { alert("Error actualizando usuario."); }
+  };
+
+  // ==========================
+  // LÓGICA GLOBAL
+  // ==========================
   const handleSaveGlobalConfig = async () => {
     try {
       const docRef = doc(db, "configuration", "global_options");
@@ -187,7 +243,7 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { alert("Error al guardar."); }
   };
 
-  // Helper ListEditor
+  // Componente ListEditor
   const ListEditor = ({ title, items, setItems }) => {
     const [val, setVal] = useState("");
     return (
@@ -210,7 +266,7 @@ export default function AdminPanel({ onLogout }) {
     );
   };
 
-  if (loadingConfig) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
+  if (loadingConfig) return <div className="h-screen flex items-center justify-center">Cargando Panel...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
@@ -240,10 +296,9 @@ export default function AdminPanel({ onLogout }) {
 
       <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
         
-        {/* --- VISTA: REPORTES --- */}
         {activeTab === 'analytics' && <AnalyticsPanel />}
 
-        {/* --- VISTA: MENÚ --- */}
+        {/* --- GESTIÓN DE MENÚ --- */}
         {activeTab === 'menu' && (
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -253,6 +308,7 @@ export default function AdminPanel({ onLogout }) {
                     </button>
                 </div>
 
+                {/* Modal Producto (Sin cambios lógicos, solo render) */}
                 {isEditing && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -264,7 +320,7 @@ export default function AdminPanel({ onLogout }) {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-500 uppercase">Nombre</label>
-                                        <input type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Ej: Pizza..."/>
+                                        <input type="text" className="w-full border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}/>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-xs font-bold text-slate-500 uppercase">Precio ($)</label>
@@ -279,11 +335,10 @@ export default function AdminPanel({ onLogout }) {
                                         </select>
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">Stock (Opcional)</label>
+                                        <label className="text-xs font-bold text-slate-500 uppercase">Stock</label>
                                         <input type="number" className="w-full border p-2 rounded" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} placeholder="Ilimitado"/>
                                     </div>
                                 </div>
-                                {/* Configuración extra (Classic, Combo, Active) */}
                                 <div className="pt-4 border-t border-slate-100 space-y-3">
                                     <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-slate-50 cursor-pointer">
                                         <input type="checkbox" className="w-5 h-5 text-blue-600" checked={formData.isActive} onChange={e => setFormData({...formData, isActive: e.target.checked})} />
@@ -295,7 +350,7 @@ export default function AdminPanel({ onLogout }) {
                                             <input type="checkbox" className="w-5 h-5 text-amber-600" checked={formData.isClassic} onChange={e => setFormData({...formData, isClassic: e.target.checked})} />
                                             <div>
                                                 <span className="block text-sm font-bold text-amber-900">Pizza Clásica</span>
-                                                <span className="text-xs text-amber-700">Pide tamaño y 2 ingredientes.</span>
+                                                <span className="text-xs text-amber-700">Habilita selector de tamaño.</span>
                                             </div>
                                         </label>
                                     )}
@@ -323,9 +378,10 @@ export default function AdminPanel({ onLogout }) {
                     </div>
                 )}
 
-                {loadingProducts ? <p>Cargando...</p> : (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <table className="w-full text-sm text-left">
+                {/* Tabla Productos */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                     {/* ... (Tabla idéntica al código previo) ... */}
+                     <table className="w-full text-sm text-left">
                             <thead className="bg-slate-100 text-slate-500 uppercase font-bold">
                                 <tr>
                                     <th className="px-6 py-3">Nombre</th>
@@ -338,11 +394,14 @@ export default function AdminPanel({ onLogout }) {
                             <tbody className="divide-y divide-slate-100">
                                 {products.map((p) => (
                                     <tr key={p.id} className="hover:bg-slate-50">
-                                        <td className="px-6 py-4 font-medium text-slate-900">{p.name}</td>
+                                        <td className="px-6 py-4 font-medium text-slate-900">
+                                            {p.name}
+                                            {p.pizzaType === "Clasica" && <span className="ml-2 text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">Clásica</span>}
+                                        </td>
                                         <td className="px-6 py-4 font-mono font-bold">${p.price.toFixed(2)}</td>
                                         <td className="px-6 py-4 text-slate-500">{p.stock !== null && p.stock !== undefined ? p.stock : '∞'}</td>
                                         <td className="px-6 py-4 text-center">
-                                            <button onClick={() => { setFormData({...p, isActive: !p.isActive}); handleSaveProduct(); }} className={p.isActive !== false ? 'text-green-600' : 'text-slate-300'}>
+                                            <button onClick={() => handleToggleActive(p)} className={p.isActive !== false ? 'text-green-600' : 'text-slate-300'}>
                                                 {p.isActive !== false ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
                                             </button>
                                         </td>
@@ -354,71 +413,108 @@ export default function AdminPanel({ onLogout }) {
                                 ))}
                             </tbody>
                         </table>
-                    </div>
-                )}
+                </div>
             </div>
         )}
 
-        {/* --- VISTA: USUARIOS (NUEVO) --- */}
+        {/* --- VISTA: USUARIOS (NUEVA Y COMPLETA) --- */}
         {activeTab === 'users' && (
             <div className="space-y-6 max-w-4xl mx-auto">
-                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg flex gap-3 items-start text-sm text-yellow-800">
-                    <ShieldAlert className="shrink-0 mt-0.5" size={18}/>
-                    <div>
-                        <p className="font-bold">Gestión de Acceso</p>
-                        <p>Para crear un usuario nuevo, debes hacerlo desde la Consola de Firebase (Authentication + Firestore). Aquí solo puedes desactivar el acceso a usuarios existentes.</p>
-                    </div>
+                <div className="flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-slate-800">Gestión de Personal</h2>
+                    <button onClick={() => setIsCreatingUser(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 flex items-center gap-2 shadow">
+                        <Plus size={18}/> Registrar Usuario
+                    </button>
                 </div>
 
-                {loadingUsers ? <p className="text-center text-slate-500">Cargando personal...</p> : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {users.map(user => (
-                            <div key={user.id} className={`bg-white p-5 rounded-xl shadow-sm border flex justify-between items-center ${user.active === false ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
-                                <div className="flex items-center gap-3">
-                                    <div className={`p-3 rounded-full ${user.active === false ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                        <Users size={20}/>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-slate-800">{user.name || "Usuario"}</h4>
-                                        <p className="text-xs text-slate-500">{user.email}</p>
-                                        <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 px-2 py-0.5 rounded text-slate-600 mt-1 inline-block">
-                                            {user.role}
-                                        </span>
-                                    </div>
-                                </div>
-                                
-                                {user.role !== 'admin' && (
-                                    <button 
-                                        onClick={() => toggleUserStatus(user)}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                            user.active === false 
-                                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                                            : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                        }`}
-                                    >
-                                        {user.active === false ? <><UserCheck size={14}/> Reactivar</> : <><UserX size={14}/> Desactivar</>}
-                                    </button>
-                                )}
+                {/* Modal Crear Usuario */}
+                {isCreatingUser && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+                            <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                                <h3 className="font-bold text-lg">Registrar Empleado</h3>
+                                <button onClick={() => setIsCreatingUser(false)} className="hover:bg-white/10 p-1 rounded"><XIcon size={20}/></button>
                             </div>
-                        ))}
+                            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Nombre</label>
+                                    <div className="relative"><Users className="absolute left-3 top-2.5 text-slate-400" size={16}/>
+                                    <input required type="text" className="w-full pl-9 border p-2 rounded" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})}/></div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Correo</label>
+                                    <input required type="email" className="w-full border p-2 rounded" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})}/>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Contraseña</label>
+                                    <div className="relative"><Key className="absolute left-3 top-2.5 text-slate-400" size={16}/>
+                                    <input required type="password" className="w-full pl-9 border p-2 rounded" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})}/></div>
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-bold text-slate-500 uppercase">Rol</label>
+                                    <select className="w-full border p-2 rounded bg-white" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                                        <option value="recepcion">Recepción (Cajero)</option>
+                                        <option value="cocina">Cocina (Pantalla)</option>
+                                        <option value="admin">Administrador</option>
+                                    </select>
+                                </div>
+                                <div className="pt-4 flex gap-2">
+                                    <button type="button" onClick={() => setIsCreatingUser(false)} className="flex-1 py-2 bg-slate-100 text-slate-600 font-bold rounded hover:bg-slate-200">Cancelar</button>
+                                    <button type="submit" className="flex-1 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700">Crear Usuario</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
+
+                {/* Lista de Usuarios */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {users.map(user => (
+                        <div key={user.id} className={`bg-white p-5 rounded-xl shadow-sm border flex justify-between items-center ${user.active === false ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`p-3 rounded-full ${user.active === false ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                    {user.role === 'admin' ? <Shield size={20}/> : user.role === 'cocina' ? <Pizza size={20}/> : <Users size={20}/>}
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-800">{user.name || "Usuario"}</h4>
+                                    <p className="text-xs text-slate-500">{user.email}</p>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider bg-slate-100 px-2 py-0.5 rounded text-slate-600 mt-1 inline-block">
+                                        {user.role}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {user.role !== 'admin' && (
+                                <button 
+                                    onClick={() => toggleUserStatus(user)}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                        user.active === false 
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                    }`}
+                                >
+                                    {user.active === false ? <><UserCheck size={14}/> Activar</> : <><UserX size={14}/> Bloquear</>}
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
         )}
 
-        {/* --- VISTA: CONFIG GLOBAL --- */}
+        {/* --- VISTA: CONFIG GLOBAL (Igual que antes) --- */}
         {activeTab === 'config' && (
           <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-slate-800">Configuración Global</h2>
                 <button onClick={handleSaveGlobalConfig} className="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 shadow-lg flex gap-2 items-center">
-                    <Save size={18}/> Guardar
+                    <Save size={18}/> Guardar Globales
                 </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-1 space-y-4">
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-100">
-                        <h3 className="font-bold text-slate-700 mb-4 flex gap-2 items-center"><Pizza size={18} className="text-amber-500"/> Precios</h3>
+                        <h3 className="font-bold text-slate-700 mb-4 flex gap-2 items-center"><Pizza size={18} className="text-amber-500"/> Precios Base</h3>
                         <div className="space-y-4">
                             <div><label className="text-xs font-bold text-slate-500 uppercase">Ingrediente Extra</label><input type="number" className="w-full border p-2 rounded font-bold" value={prices.extraIngredient} onChange={e => setPrices({...prices, extraIngredient: e.target.value})} /></div>
                             <div><label className="text-xs font-bold text-slate-500 uppercase">Extra Gigante</label><input type="number" className="w-full border p-2 rounded font-bold" value={prices.sizeDifference} onChange={e => setPrices({...prices, sizeDifference: e.target.value})} /></div>
