@@ -8,16 +8,22 @@ import {
   updateDoc
 } from "firebase/firestore";
 import { db } from "../services/firebase";
+import { toast } from "react-hot-toast";
 
 export function useOrders() {
   const [loading, setLoading] = useState(false);
 
   const generateOrderNumber = async () => {
+    // Si no hay red, no intentamos la transacción (que fallaría)
+    if (!navigator.onLine) {
+        return { number: "PENDIENTE", isOffline: true };
+    }
+
     const todayStr = new Date().toISOString().split("T")[0];
     const counterRef = doc(db, "counters", "orders");
 
     try {
-      return await runTransaction(db, async (transaction) => {
+      const number = await runTransaction(db, async (transaction) => {
         const counterDoc = await transaction.get(counterRef);
         let nextNumber = 1;
 
@@ -34,40 +40,46 @@ export function useOrders() {
         });
         return nextNumber;
       });
+      return { number, isOffline: false };
     } catch (e) {
-      console.error("Error transacción:", e);
-      return Math.floor(Date.now() / 1000) % 10000;
+      console.error("Error transacción (posiblemente offline):", e);
+      // Fallback seguro si la transacción falla
+      return { number: "PENDIENTE", isOffline: true };
     }
   };
 
   const saveOrder = async ({ orderData, cartItems }) => {
     setLoading(true);
     try {
-      const number = await generateOrderNumber();
+      // 1. Obtener número (con manejo seguro de offline)
+      const { number, isOffline } = await generateOrderNumber();
+      
       const batch = writeBatch(db);
       const newOrderRef = doc(collection(db, "orders"));
 
-      // OPTIMIZACIÓN PARA ANALÍTICA:
-      // Guardamos una copia de los items directamente en la orden principal (itemsSnapshot).
-      // Esto evita tener que leer subcolecciones para generar reportes, reduciendo costos y tiempo.
       const itemsSnapshot = cartItems.map(item => ({
         id: item.id,
         name: item.name,
         price: item.price,
         qty: item.qty,
-        mainCategory: item.mainCategory || "Otros", // Asegura categoría para reportes
+        mainCategory: item.mainCategory || "Otros",
         total: item.price * item.qty
       }));
 
-      batch.set(newOrderRef, {
+      // 2. Preparar datos con flag de sincronización
+      const orderPayload = {
         ...orderData,
-        number,
-        itemsSnapshot, // <--- DATA CLAVE PARA REPORTES
+        number, // Será un número o "PENDIENTE"
+        itemsSnapshot,
         createdAt: serverTimestamp(),
-        createdBy: "recepcion-tablet"
-      });
+        createdBy: "recepcion-tablet",
+        syncStatus: isOffline ? "pending" : "synced", // ✅ Nuevo campo
+        originalOfflineId: isOffline ? newOrderRef.id : null
+      };
 
-      // Mantenemos la subcolección por si se requiere detalle granular o histórico
+      batch.set(newOrderRef, orderPayload);
+
+      // Subcolección (por compatibilidad)
       cartItems.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
@@ -82,10 +94,22 @@ export function useOrders() {
         });
       });
 
-      await batch.commit();
-      return { number, id: newOrderRef.id };
+      // 3. Escritura optimista
+      // Si estamos offline, commit() se resolverá cuando se escriba en IndexedDB,
+      // pero no esperamos confirmación del servidor para desbloquear la UI.
+      
+      if (isOffline) {
+          batch.commit(); // "Fire and forget" para la UI
+          toast("Guardado en dispositivo (Sin conexión)", { icon: '💾' });
+      } else {
+          await batch.commit(); // Esperar confirmación real si hay red
+      }
+
+      return { number, id: newOrderRef.id, isOffline };
+
     } catch (error) {
-      console.error("Error crítico:", error);
+      console.error("Error crítico guardando orden:", error);
+      toast.error("No se pudo guardar la orden");
       throw error;
     } finally {
       setLoading(false);
@@ -95,10 +119,11 @@ export function useOrders() {
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "orders", orderId);
+      // Usamos updateDoc normal, si está offline se encola automáticamente
       await updateDoc(orderRef, { status: newStatus });
     } catch (error) {
       console.error("Error actualizando orden:", error);
-      throw error;
+      toast.error("Error al actualizar estado");
     }
   };
 

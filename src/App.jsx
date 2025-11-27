@@ -13,6 +13,7 @@ import Login from "./components/Login";
 import ReceptionPanel from "./components/ReceptionPanel";
 import KitchenDisplay from "./components/KitchenDisplay";
 import AdminPanel from "./components/AdminPanel";
+import NetworkStatus from "./components/NetworkStatus"; // ✅ Importación añadida
 
 export default function App() {
   const { user, role, loading, error, login, logout } = useAuth();
@@ -26,6 +27,8 @@ export default function App() {
     return (
       <>
         <Toaster position="top-center" reverseOrder={false} />
+        {/* También podrías querer mostrar el NetworkStatus en el login si lo deseas */}
+        <NetworkStatus /> 
         <Login onLogin={login} error={error} />
       </>
     );
@@ -48,13 +51,14 @@ export default function App() {
             fontWeight: 'bold',
           },
           success: {
-            style: { background: '#22c55e' }, // Verde éxito
-          },
+            style: { background: '#22c55e' },           },
           error: {
-            style: { background: '#ef4444' }, // Rojo error
+            style: { background: '#ef4444' }, 
           },
         }}
       />
+
+      <NetworkStatus />
 
       {role === 'recepcion' && <ReceptionPanel onLogout={logout} />}
       {role === 'cocina' && <KitchenDisplay onLogout={logout} />}
