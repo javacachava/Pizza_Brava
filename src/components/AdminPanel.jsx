@@ -12,7 +12,7 @@ import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 
-// Configuración para la "App Secundaria" (Creación de usuarios)
+// Config para app secundaria
 const firebaseConfig = {
   apiKey: "AIzaSyBrDyjHHE8Fut5xJWnxexj6rtax-Jsvdqs",
   authDomain: "pizza-brava-dev.firebaseapp.com",
@@ -114,25 +114,22 @@ export default function AdminPanel({ onLogout }) {
     setIsEditing(true);
   };
 
-  // --- VALIDACIÓN ESTRICTA (DEFENSA EN PROFUNDIDAD NIVEL 1) ---
   const handleSaveProduct = async () => {
-    // 1. Validar campos obligatorios
     if (!formData.name?.trim()) return alert("El nombre del producto es obligatorio.");
     if (formData.price === "" || formData.price === null) return alert("El precio es obligatorio.");
 
-    // 2. Validar tipos de datos
     const priceValue = parseFloat(formData.price);
-    if (isNaN(priceValue) || priceValue < 0) return alert("El precio debe ser un número válido mayor o igual a 0.");
+    if (isNaN(priceValue) || priceValue < 0) return alert("Precio inválido.");
 
     let stockValue = null;
     if (formData.stock !== "") {
         stockValue = parseInt(formData.stock);
-        if (isNaN(stockValue) || stockValue < 0) return alert("El stock debe ser un número entero positivo.");
+        if (isNaN(stockValue) || stockValue < 0) return alert("Stock inválido.");
     }
 
     const productData = {
       name: formData.name.trim(),
-      price: priceValue, // Guardamos número, no string
+      price: priceValue,
       stock: stockValue,
       mainCategory: formData.mainCategory,
       station: formData.station,
@@ -149,17 +146,14 @@ export default function AdminPanel({ onLogout }) {
     try {
       if (formData.id) {
         await updateDoc(doc(db, "menuItems", formData.id), productData);
-        alert("Producto actualizado correctamente.");
+        alert("Producto actualizado.");
       } else {
         await addDoc(collection(db, "menuItems"), productData);
-        alert("Producto creado correctamente.");
+        alert("Producto creado.");
       }
       setIsEditing(false);
       fetchProducts();
-    } catch (e) { 
-        console.error(e);
-        alert("Error al guardar en base de datos. Verifica tu conexión o permisos."); 
-    }
+    } catch (e) { alert("Error al guardar."); }
   };
 
   const handleToggleActive = async (product) => {
@@ -182,15 +176,23 @@ export default function AdminPanel({ onLogout }) {
     setLoadingUsers(true);
     try {
       const q = await getDocs(collection(db, "users"));
-      const userList = q.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // FIX: Asegurar que active tenga valor por defecto si viene undefined
+      const userList = q.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          active: doc.data().active ?? true // Default true si no existe el campo
+      }));
       setUsers(userList);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error("Error cargando usuarios:", e);
+        alert("Error al cargar lista de usuarios.");
+    }
     finally { setLoadingUsers(false); }
   };
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    if (newUser.password.length < 6) return alert("La contraseña debe tener al menos 6 caracteres.");
+    if (newUser.password.length < 6) return alert("Contraseña muy corta (min 6).");
 
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
@@ -225,14 +227,33 @@ export default function AdminPanel({ onLogout }) {
 
   const toggleUserStatus = async (user) => {
     if (user.role === 'admin') return alert("No puedes desactivar a un administrador.");
-    const currentStatus = user.active !== false;
     
-    if (!window.confirm(`¿${currentStatus ? 'Desactivar' : 'Reactivar'} a ${user.name}?`)) return;
+    // Invertir estado actual
+    const newStatus = !user.active;
+    
+    if (!window.confirm(`¿${newStatus ? 'Reactivar' : 'Bloquear'} a ${user.name}?`)) return;
 
     try {
-      await updateDoc(doc(db, "users", user.id), { active: !currentStatus });
-      setUsers(users.map(u => u.id === user.id ? { ...u, active: !currentStatus } : u));
+      await updateDoc(doc(db, "users", user.id), { active: newStatus });
+      setUsers(users.map(u => u.id === user.id ? { ...u, active: newStatus } : u));
     } catch (e) { alert("Error actualizando usuario."); }
+  };
+
+  const handleDeleteUser = async (user) => {
+    if (user.role === 'admin') return alert("No puedes eliminar a un administrador.");
+    
+    if (!window.confirm(`¿ESTÁS SEGURO? Eliminarás permanentemente a ${user.name}.\nEl usuario ya no podrá acceder.`)) return;
+
+    try {
+        // Borramos el documento de Firestore.
+        // El usuario quedará en Auth pero sin permisos ni rol, por lo que el login fallará.
+        await deleteDoc(doc(db, "users", user.id));
+        setUsers(users.filter(u => u.id !== user.id));
+        alert("Usuario eliminado del sistema.");
+    } catch (e) {
+        console.error(e);
+        alert("Error al eliminar usuario.");
+    }
   };
 
   // --- LOGICA GLOBAL ---
@@ -300,6 +321,7 @@ export default function AdminPanel({ onLogout }) {
       </div>
 
       <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
+        
         {activeTab === 'analytics' && <AnalyticsPanel />}
 
         {activeTab === 'menu' && (
@@ -417,6 +439,7 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
+        {/* --- VISTA: USUARIOS (CORREGIDA) --- */}
         {activeTab === 'users' && (
             <div className="space-y-6 max-w-4xl mx-auto">
                 <div className="flex justify-between items-center">
@@ -482,16 +505,25 @@ export default function AdminPanel({ onLogout }) {
                             </div>
                             
                             {user.role !== 'admin' && (
-                                <button 
-                                    onClick={() => toggleUserStatus(user)}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                                        user.active === false 
-                                        ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                                        : 'bg-red-100 text-red-700 hover:bg-red-200'
-                                    }`}
-                                >
-                                    {user.active === false ? <><UserCheck size={14}/> Activar</> : <><UserX size={14}/> Bloquear</>}
-                                </button>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => toggleUserStatus(user)}
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                            user.active === false 
+                                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                            : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                        }`}
+                                    >
+                                        {user.active === false ? <UserCheck size={14}/> : <UserX size={14}/>}
+                                    </button>
+                                    <button 
+                                        onClick={() => handleDeleteUser(user)}
+                                        className="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center"
+                                        title="Eliminar permanentemente"
+                                    >
+                                        <Trash2 size={14}/>
+                                    </button>
+                                </div>
                             )}
                         </div>
                     ))}
@@ -499,6 +531,7 @@ export default function AdminPanel({ onLogout }) {
             </div>
         )}
 
+        {/* --- VISTA: CONFIG GLOBAL --- */}
         {activeTab === 'config' && (
           <div className="space-y-6 max-w-5xl mx-auto">
             <div className="flex justify-between items-center">
