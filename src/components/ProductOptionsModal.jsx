@@ -1,58 +1,71 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, CheckSquare, Square, ChefHat, ChevronRight, UtensilsCrossed, Wine } from "lucide-react";
 
-export default function ProductOptionsModal({ isOpen, product, onClose, onConfirm, ingredientsList, prices }) {
+// 1. Agregamos globalConfig a las props
+export default function ProductOptionsModal({ 
+  isOpen, 
+  product, 
+  onClose, 
+  onConfirm, 
+  ingredientsList, 
+  prices, 
+  globalConfig // Nueva prop
+}) {
   if (!isOpen || !product) return null;
 
-  // 1. DETERMINAR TIPO DE PRODUCTO Y CONFIGURACIÓN
+  // 2. LÓGICA DE RESPALDO (FALLBACK)
+  // Si ingredientsList es undefined, usamos globalConfig. Si no, array vacío.
+  const effectiveIngredients = ingredientsList || globalConfig?.ingredients || [];
+  
+  // Si prices es undefined, usamos globalConfig. Si no, valores en cero para evitar crash.
+  const effectivePrices = prices || globalConfig?.rules || { extraIngredient: 0, sizeDifference: 0 };
+
+  // 3. DETERMINAR TIPO DE PRODUCTO Y CONFIGURACIÓN
   const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
   const isPizza = product.mainCategory === "Pizzas";
   
-  // Si el producto trae "comboOptions" de Firebase, las usamos. Si no, objeto vacío.
   const comboOpts = product.comboOptions || {}; 
 
-  // 2. ESTADOS
+  // 4. ESTADOS
   const [size, setSize] = useState("Personal");
   const [selectedIngredients, setSelectedIngredients] = useState([]);
-  
-  // Estados para opciones dinámicas del combo (si existen en la DB)
   const [selectedSide, setSelectedSide] = useState("");
   const [selectedDrink, setSelectedDrink] = useState("");
 
-  // 3. INICIALIZACIÓN
+  // 5. INICIALIZACIÓN
   useEffect(() => {
     setSize("Personal");
     setSelectedIngredients([]);
     
-    // Si el producto tiene opciones de acompañamiento definidas en DB, seleccionar la primera por defecto
     if (comboOpts.sideChoices && comboOpts.sideChoices.length > 0) {
         setSelectedSide(comboOpts.sideChoices[0]);
     }
-    // Si el producto tiene opciones de bebida definidas en DB
     if (comboOpts.drinkChoices && comboOpts.drinkChoices.length > 0) {
         setSelectedDrink(comboOpts.drinkChoices[0]);
     }
   }, [product]);
 
-  // 4. CÁLCULO DE PRECIOS
+  // 6. CÁLCULO DE PRECIOS
   const currentPrice = useMemo(() => {
     let price = product.price;
     
-    // Solo sumamos precio por tamaño si es Clásica
+    // CORRECCIÓN: Usamos effectivePrices en lugar de prices
     if (isClassic && size === "Grande") {
-        price += prices.sizeDifference;
+        price += effectivePrices.sizeDifference;
     }
     return price;
-  }, [product, size, isClassic, prices]);
+  }, [product, size, isClassic, effectivePrices]); // Dependencia actualizada
 
-  // Ingredientes extra (Solo cobran si superan los incluidos)
+  // Ingredientes extra
   const includedIng = isClassic ? 2 : 0;
   const extraCount = Math.max(0, selectedIngredients.length - includedIng);
-  const extraCost = extraCount * prices.extraIngredient;
+  
+  // CORRECCIÓN: Usamos effectivePrices aqui también
+  const extraCost = extraCount * effectivePrices.extraIngredient;
   
   const finalPrice = currentPrice + extraCost;
 
-  // 5. HANDLERS
+  // 7. HANDLERS
   const toggleIngredient = (ing) => {
     setSelectedIngredients(prev => 
       prev.includes(ing) ? prev.filter(i => i !== ing) : [...prev, ing]
@@ -60,13 +73,11 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
   };
 
   const handleConfirm = () => {
-    // Validación Clásica
     if (isClassic && selectedIngredients.length < 2) {
         alert("La Pizza Clásica requiere al menos 2 ingredientes.");
         return;
     }
 
-    // Construir detalles para el ticket
     let details = [];
     if (isClassic) details.push(size);
     if (comboOpts.hasSide) details.push(`Acomp: ${selectedSide}`);
@@ -100,7 +111,7 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
 
         <div className="p-5 bg-slate-50 flex-1 overflow-y-auto space-y-6">
           
-          {/* SECCIÓN 1: TAMAÑO (Solo Pizzas Clásicas) */}
+          {/* SECCIÓN 1: TAMAÑO */}
           {isClassic && (
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tamaño</h4>
@@ -109,16 +120,16 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
                     Personal
                 </button>
                 <button onClick={() => setSize("Grande")} className={`flex-1 py-3 rounded-lg border text-sm font-bold transition-all ${size === "Grande" ? "bg-amber-600 text-white shadow-md" : "bg-white"}`}>
-                    Gigante (+${prices.sizeDifference.toFixed(2)})
+                    {/* CORRECCIÓN: Usamos effectivePrices */}
+                    Gigante (+${effectivePrices.sizeDifference.toFixed(2)})
                 </button>
               </div>
             </div>
           )}
 
-          {/* SECCIÓN 2: OPCIONES DEL COMBO (Dinámicas desde DB) */}
+          {/* SECCIÓN 2: OPCIONES DEL COMBO */}
           {(comboOpts.hasSide || comboOpts.hasDrink) && (
             <div className="grid grid-cols-1 gap-4 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
-              {/* Selector de Acompañamiento */}
               {comboOpts.hasSide && comboOpts.sideChoices?.length > 0 && (
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
@@ -134,7 +145,6 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
                 </div>
               )}
 
-              {/* Selector de Bebida */}
               {comboOpts.hasDrink && comboOpts.drinkChoices?.length > 0 && (
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
@@ -152,7 +162,7 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
             </div>
           )}
 
-          {/* SECCIÓN 3: INGREDIENTES (Solo Pizzas) */}
+          {/* SECCIÓN 3: INGREDIENTES */}
           {isPizza && (
             <div className="space-y-3">
               <div className="flex justify-between items-end">
@@ -167,7 +177,8 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
               </div>
               
               <div className="grid grid-cols-2 gap-2">
-                {ingredientsList.map((ing) => {
+                {/* CORRECCIÓN CRÍTICA: Iteramos sobre effectiveIngredients */}
+                {effectiveIngredients.map((ing) => {
                   const isSelected = selectedIngredients.includes(ing);
                   return (
                     <button
@@ -189,7 +200,6 @@ export default function ProductOptionsModal({ isOpen, product, onClose, onConfir
           )}
         </div>
 
-        {/* Footer */}
         <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center shrink-0">
           <div>
             <p className="text-xs text-slate-500">Total</p>
