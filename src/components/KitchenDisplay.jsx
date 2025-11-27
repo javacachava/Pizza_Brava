@@ -2,14 +2,15 @@ import React, { useEffect, useState } from "react";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useOrders } from "../hooks/useOrders";
-import { Clock, CheckCircle, LogOut } from "lucide-react";
+// CORRECCIÓN AQUÍ: Agregado ChefHat a los imports
+import { Clock, CheckCircle, LogOut, ChefHat } from "lucide-react";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
   const { updateOrderStatus } = useOrders();
 
   useEffect(() => {
-    // Escuchar órdenes que NO estén terminadas
+    // Escuchar órdenes que NO estén terminadas (nuevo o proceso)
     const q = query(
       collection(db, "orders"),
       where("status", "in", ["nuevo", "proceso"]),
@@ -50,32 +51,67 @@ export default function KitchenDisplay({ onLogout }) {
           }`}>
             <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-opacity-50">
               <span className="font-black text-2xl">#{order.number}</span>
-              <span className="text-xs font-bold uppercase tracking-wider px-2 py-1 rounded bg-slate-200">
+              <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded ${
+                  order.status === 'nuevo' ? 'bg-green-200 text-green-800' : 'bg-amber-200 text-amber-800'
+              }`}>
                 {order.status}
               </span>
             </div>
             
             <div className="p-4 space-y-4">
-                {/* Aquí idealmente harías un fetch de los items de la subcolección, 
-                    pero para eficiencia, te sugiero guardar un resumen de items en el documento padre de la orden también
-                    o hacer un componente <OrderItems orderId={order.id} /> que los busque.
-                    
-                    Por ahora, asumiremos que guardas un array 'itemsSummary' en la orden para mostrar rápido.
-                */}
-                <p className="text-sm text-slate-500">
-                    {new Date(order.createdAt?.seconds * 1000).toLocaleTimeString()}
+                <p className="text-sm text-slate-500 font-medium">
+                    {order.createdAt?.seconds 
+                        ? new Date(order.createdAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+                        : 'Hora pendiente...'}
                 </p>
+                
+                {/* LISTA DE PRODUCTOS PARA COCINA */}
+                <div className="space-y-2">
+                    {order.itemsSnapshot?.map((item, idx) => (
+                        <div key={idx} className="border-b border-slate-200 pb-2 last:border-0">
+                            <p className="font-bold text-sm">
+                                <span className="bg-slate-800 text-white px-1.5 rounded text-xs mr-1">{item.qty}</span> 
+                                {item.name}
+                            </p>
+                            {/* Mostrar detalles de preparación */}
+                            {(item.details || (item.ingredients && item.ingredients.length > 0)) && (
+                                <div className="text-xs text-slate-600 pl-6 mt-1">
+                                    {item.details?.map((d, i) => <div key={i}>• {d}</div>)}
+                                    {item.ingredients?.length > 0 && (
+                                        <div className="italic text-slate-500">Ing: {item.ingredients.join(", ")}</div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Notas de la orden */}
+                {order.orderNotes && (
+                    <div className="bg-yellow-50 p-2 rounded border border-yellow-200 text-xs italic text-yellow-800">
+                        " {order.orderNotes} "
+                    </div>
+                )}
             </div>
 
             <button 
                 onClick={() => handleAdvanceOrder(order)}
-                className="w-full py-4 text-center font-bold text-sm uppercase hover:bg-black/5 transition-colors flex justify-center items-center gap-2"
+                className={`w-full py-4 text-center font-bold text-sm uppercase hover:brightness-95 transition-colors flex justify-center items-center gap-2 ${
+                    order.status === 'nuevo' ? 'bg-slate-100 text-slate-700' : 'bg-green-600 text-white'
+                }`}
             >
-                {order.status === 'nuevo' ? 'Empezar' : 'Terminar'} 
+                {order.status === 'nuevo' ? 'Empezar Preparación' : 'Terminar Orden'} 
                 {order.status === 'nuevo' ? <Clock size={16}/> : <CheckCircle size={16}/>}
             </button>
           </div>
         ))}
+
+        {orders.length === 0 && (
+            <div className="col-span-full text-center py-20 text-slate-500">
+                <Clock size={48} className="mx-auto mb-4 opacity-20"/>
+                <p className="text-xl font-light">No hay órdenes pendientes</p>
+            </div>
+        )}
       </div>
     </div>
   );
