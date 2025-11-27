@@ -15,30 +15,38 @@ export function useAuth() {
       
       if (currentUser) {
         try {
-          // Intentamos leer el rol del usuario
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setRole(userData.role);
-            setUser(currentUser);
-            setError(null);
+            
+            // --- NUEVA VALIDACIÓN DE SEGURIDAD ---
+            // Si el usuario tiene la marca active: false, lo expulsamos.
+            if (userData.active === false) {
+                console.warn("Usuario desactivado intentó ingresar.");
+                setError("Tu cuenta ha sido desactivada. Contacta al administrador.");
+                await signOut(auth);
+                setUser(null);
+                setRole(null);
+            } else {
+                setRole(userData.role);
+                setUser(currentUser);
+                setError(null);
+            }
+
           } else {
-            // Usuario existe en Auth pero no en Firestore (Error de datos)
-            console.error("Usuario sin documento en colección 'users'");
+            console.error("Usuario sin documento en Firestore");
             setError("Usuario no registrado en base de datos.");
-            await signOut(auth); // Desloguear para evitar limbo
+            await signOut(auth);
             setUser(null);
           }
         } catch (err) {
-          // Error de Permisos o Red
-          console.error("Error verificando rol:", err);
-          setError("Error de conexión o permisos. Intente de nuevo.");
-          await signOut(auth); // IMPORTANTE: Desloguear para permitir reintento
+          console.error("Error auth:", err);
+          setError("Error de conexión. Intente de nuevo.");
+          await signOut(auth);
           setUser(null);
         }
       } else {
-        // No hay usuario
         setUser(null);
         setRole(null);
       }
@@ -53,14 +61,12 @@ export function useAuth() {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // No hacemos nada más aquí, el onAuthStateChanged se encarga del resto
     } catch (err) {
       console.error("Login error:", err);
-      // Mensajes de error amigables
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-        setError("Correo o contraseña incorrectos.");
+        setError("Credenciales incorrectas.");
       } else if (err.code === 'auth/too-many-requests') {
-        setError("Demasiados intentos fallidos. Espere unos minutos.");
+        setError("Cuenta bloqueada temporalmente por intentos fallidos.");
       } else {
         setError("Error al iniciar sesión.");
       }
@@ -73,7 +79,7 @@ export function useAuth() {
       setRole(null);
       setUser(null);
     } catch (e) {
-      console.error("Error al salir:", e);
+      console.error("Error logout:", e);
     }
   };
 
