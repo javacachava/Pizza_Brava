@@ -20,15 +20,21 @@ export function useAuth() {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             
-            // --- NUEVA VALIDACIÓN DE SEGURIDAD ---
-            // Si el usuario tiene la marca active: false, lo expulsamos.
+            // --- VALIDACIÓN DE ESTADO DE USUARIO ---
             if (userData.active === false) {
                 console.warn("Usuario desactivado intentó ingresar.");
                 setError("Tu cuenta ha sido desactivada. Contacta al administrador.");
+                
+                // Forzamos el logout si la cuenta está desactivada en Firestore
                 await signOut(auth);
                 setUser(null);
                 setRole(null);
             } else {
+                // ✅ MEJORA: Forzar refresco del token
+                // Esto actualiza el token JWT local para asegurar que request.auth.token 
+                // tenga los claims más recientes (ej. roles, status) para las reglas de seguridad.
+                await currentUser.getIdToken(true);
+
                 setRole(userData.role);
                 setUser(currentUser);
                 setError(null);

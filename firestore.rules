@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- FUNCIONES AUXILIARES ---
+    
+    // Verifica que el usuario esté autenticado y su cuenta esté activa
+    function isActive() {
+      return request.auth != null && 
+             request.auth.token.active == true;
+    }
+
+    // Verifica roles específicos (usando los claims que creamos en el paso 1)
+    function isAdmin() {
+      return isActive() && request.auth.token.role == 'admin';
+    }
+    
+    function isStaff() {
+      return isActive() && (request.auth.token.role in ['recepcion', 'cocina', 'admin']);
+    }
+
+    // --- REGLAS DE COLECCIONES ---
+
+    // Colección de Usuarios
+    match /users/{userId} {
+      // Cualquiera autenticado puede leer su propio perfil para ver si está activo
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Solo el admin puede crear o modificar usuarios (como en tu AdminPanel)
+      allow write: if isAdmin(); 
+    }
+
+    // Órdenes
+    match /orders/{orderId} {
+      // Solo personal activo puede leer/escribir órdenes
+      allow read, write: if isStaff();
+      
+      // Subcolección de items
+      match /items/{itemId} {
+        allow read, write: if isStaff();
+      }
+    }
+
+    // Menú
+    match /menuItems/{itemId} {
+      allow read: if isStaff(); // O allow read: if true; si es menú público
+      allow write: if isAdmin();
+    }
+    
+    // Configuración
+    match /configuration/{configId} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+  }
+}
