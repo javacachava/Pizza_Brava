@@ -7,9 +7,10 @@ import MenuPanel from "./MenuPanel";
 import CartPanel from "./CartPanel";
 import TicketModal from "./TicketModal";
 import ProductOptionsModal from "./ProductOptionsModal";
-import { LogOut } from "lucide-react"; // Nuevo icono para salir
+import { LogOut } from "lucide-react"; 
+import { toast } from "react-hot-toast";
 
-export default function ReceptionPanel({ onLogout }) { // Recibe onLogout
+export default function ReceptionPanel({ onLogout }) { 
   const { menuItems } = useMenu();
   const { cart, addToCart, removeFromCart, updateQty, clearCart, cartTotal } = useCart();
   const { saveOrder, loading: loadingOrder } = useOrders();
@@ -23,10 +24,11 @@ export default function ReceptionPanel({ onLogout }) { // Recibe onLogout
 
   if (loadingConfig) return <div className="h-screen flex items-center justify-center">Cargando menú...</div>;
 
-  // ... (COPIA AQUÍ EL RESTO DE TUS FUNCIONES: handleProductClick, handleConfirmModal, etc.)
-  // ... LAS MISMAS QUE TENÍAS EN APP.JSX
+  const handleConfirmOrder = async () => {
+    if (!pendingOrderData || loadingOrder) return;
+
   
-  // LÓGICA IDÉNTICA A TU APP.JSX ANTERIOR...
+  
   const handleProductClick = (product) => {
     const name = product.name?.toLowerCase() || "";
     const needsConfig = 

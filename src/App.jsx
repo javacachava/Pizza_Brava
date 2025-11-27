@@ -1,4 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
+import { Toaster } from "react-hot-toast"; 
+import { useMenu } from "./hooks/useMenu";
+import { useCart } from "./hooks/useCart";
+import { useOrders } from "./hooks/useOrders";
+import { useConfig } from "./hooks/useConfig";
+import MenuPanel from "./components/MenuPanel";
+import CartPanel from "./components/CartPanel";
+import TicketModal from "./components/TicketModal";
+import ProductOptionsModal from "./components/ProductOptionsModal";
 import { useAuth } from "./hooks/useAuth";
 import Login from "./components/Login";
 import ReceptionPanel from "./components/ReceptionPanel";
@@ -9,32 +18,55 @@ export default function App() {
   const { user, role, loading, error, login, logout } = useAuth();
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center bg-slate-100">Cargando sistema...</div>;
+    return <div className="h-screen flex items-center justify-center bg-slate-100 animate-pulse font-bold text-slate-400">Cargando sistema...</div>;
   }
 
-  // 1. Si no hay usuario, mostrar Login
+  // 1. Renderizado condicional de Login
   if (!user) {
-    return <Login onLogin={login} error={error} />;
+    return (
+      <>
+        <Toaster position="top-center" reverseOrder={false} />
+        <Login onLogin={login} error={error} />
+      </>
+    );
   }
 
-  // 2. Si hay usuario, enrutar según Rol
-  switch (role) {
-    case 'recepcion':
-      return <ReceptionPanel onLogout={logout} />;
-    
-    case 'cocina':
-      return <KitchenDisplay onLogout={logout} />;
-    
-    case 'admin':
-      return <AdminPanel onLogout={logout} />;
+  // 2. Enrutador por Rol
+  return (
+    <>
+      {/* EL TOASTER DEBE ESTAR AQUÍ PARA QUE FUNCIONE EN TODA LA APP */}
+      <Toaster 
+        position="top-center" 
+        reverseOrder={false} 
+        toastOptions={{
+          duration: 3000,
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+            fontSize: '14px',
+            fontWeight: 'bold',
+          },
+          success: {
+            style: { background: '#22c55e' }, // Verde éxito
+          },
+          error: {
+            style: { background: '#ef4444' }, // Rojo error
+          },
+        }}
+      />
+
+      {role === 'recepcion' && <ReceptionPanel onLogout={logout} />}
+      {role === 'cocina' && <KitchenDisplay onLogout={logout} />}
+      {role === 'admin' && <AdminPanel onLogout={logout} />}
       
-    default:
-      return (
+      {/* Fallback para roles desconocidos */}
+      {!['recepcion', 'cocina', 'admin'].includes(role) && (
         <div className="h-screen flex flex-col items-center justify-center bg-slate-100">
           <h1 className="text-2xl font-bold text-red-600">Rol desconocido</h1>
-          <p className="text-slate-600 mb-4">Tu usuario no tiene permisos asignados.</p>
-          <button onClick={logout} className="text-blue-600 underline">Salir</button>
+          <button onClick={logout} className="text-blue-600 underline mt-4">Salir</button>
         </div>
-      );
-  }
+      )}
+    </>
+  );
 }
