@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key, Shield // <--- AQUÍ FALTABA SHIELD
+  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key, Shield 
 } from "lucide-react";
 import { 
   doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
@@ -11,6 +11,7 @@ import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth"
 import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
+import { toast } from "react-hot-toast";
 
 // Configuración para la "App Secundaria" (Creación de usuarios)
 const firebaseConfig = {
@@ -115,11 +116,11 @@ export default function AdminPanel({ onLogout }) {
   };
 
   const handleSaveProduct = async () => {
-    if (!formData.name?.trim()) return alert("El nombre es obligatorio.");
-    if (formData.price === "" || formData.price === null) return alert("El precio es obligatorio.");
+    if (!formData.name?.trim()) return toast.error("El nombre es obligatorio");
+    if (formData.price === "" || formData.price === null) return toast.error("El precio es obligatorio");
     
     const priceVal = parseFloat(formData.price);
-    if (isNaN(priceVal) || priceVal < 0) return alert("Precio inválido.");
+    if (isNaN(priceVal) || priceVal < 0) return toast.error("Precio inválido");
 
     const productData = {
       name: formData.name.trim(),
@@ -137,17 +138,22 @@ export default function AdminPanel({ onLogout }) {
       } : null
     };
 
+    const toastId = toast.loading("Guardando producto...");
+
     try {
       if (formData.id) {
         await updateDoc(doc(db, "menuItems", formData.id), productData);
-        alert("Producto actualizado.");
+        toast.success("Producto actualizado", { id: toastId });
       } else {
         await addDoc(collection(db, "menuItems"), productData);
-        alert("Producto creado.");
+        toast.success("Producto creado", { id: toastId });
       }
       setIsEditing(false);
       fetchProducts();
-    } catch (e) { alert("Error al guardar."); }
+    } catch (e) { 
+        console.error(e);
+        toast.error("Error al guardar en base de datos", { id: toastId });
+    }
   };
 
   const handleToggleActive = async (product) => {
@@ -158,11 +164,12 @@ export default function AdminPanel({ onLogout }) {
   };
 
   const handleDeleteProduct = async (id) => {
-    if(!window.confirm("¿Eliminar este producto?")) return;
+    if(!window.confirm("¿Eliminar este producto permanentemente?")) return;
     try {
       await deleteDoc(doc(db, "menuItems", id));
       setProducts(products.filter(p => p.id !== id));
-    } catch (e) { alert("Error al eliminar"); }
+      toast.success("Producto eliminado");
+    } catch (e) { toast.error("Error al eliminar"); }
   };
 
   // --- LOGICA USUARIOS ---
@@ -182,8 +189,9 @@ export default function AdminPanel({ onLogout }) {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    if (newUser.password.length < 6) return alert("Contraseña muy corta (min 6).");
+    if (newUser.password.length < 6) return toast.error("Contraseña muy corta (min 6)");
 
+    const toastId = toast.loading("Registrando usuario...");
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -202,14 +210,16 @@ export default function AdminPanel({ onLogout }) {
         await signOut(secondaryAuth);
         deleteApp(secondaryApp);
 
-        alert(`Usuario ${newUser.name} creado.`);
+        toast.success(`Usuario ${newUser.name} creado`, { id: toastId });
         setIsCreatingUser(false);
         setNewUser({ name: "", email: "", password: "", role: "recepcion" });
         fetchUsers();
 
     } catch (error) {
         console.error("Error creando usuario:", error);
-        alert("Error al crear usuario. Revisa que el correo no exista.");
+        let msg = "Error al crear usuario";
+        if (error.code === 'auth/email-already-in-use') msg = "El correo ya existe";
+        toast.error(msg, { id: toastId });
     }
   };
 
@@ -237,6 +247,7 @@ export default function AdminPanel({ onLogout }) {
 
   // --- LOGICA GLOBAL ---
   const handleSaveGlobalConfig = async () => {
+    const toastId = toast.loading("Guardando configuración...");
     try {
       const docRef = doc(db, "configuration", "global_options");
       await updateDoc(docRef, {
@@ -246,8 +257,10 @@ export default function AdminPanel({ onLogout }) {
           sizeDifference: parseFloat(prices.sizeDifference)
         }
       });
-      alert("Configuración Guardada!");
-    } catch (e) { alert("Error al guardar."); }
+      toast.success("Configuración Global Guardada", { id: toastId });
+    } catch (e) { 
+        toast.error("Error al guardar", { id: toastId }); 
+    }
   };
 
   const ListEditor = ({ title, items, setItems }) => {
