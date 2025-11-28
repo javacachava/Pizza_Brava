@@ -68,13 +68,13 @@ export function useOrders() {
         itemsSnapshot,
         createdAt: serverTimestamp(),
         createdBy: "recepcion",
-        status: "nuevo", // nuevo -> proceso -> listo -> despachado
+        status: "nuevo", 
         syncStatus: isOffline ? "pending" : "synced"
       };
 
       batch.set(newOrderRef, orderPayload);
 
-      // Subcolección para items (opcional, para reportes profundos)
+      // Subcolección items (opcional)
       cartItems.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
@@ -112,7 +112,7 @@ export function useOrders() {
     }
   };
 
-  // Función de Mantenimiento: Mueve órdenes viejas a 'archived_orders'
+  // Mueve órdenes viejas a 'archived_orders'
   const archiveOldOrders = async () => {
     setLoading(true);
     try {

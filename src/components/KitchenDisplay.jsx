@@ -2,21 +2,31 @@ import React, { useEffect, useState, useRef } from "react";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useOrders } from "../hooks/useOrders";
-import { Clock, CheckCircle, LogOut, ChefHat, AlertTriangle, Bell, PackageCheck } from "lucide-react";
+import { Clock, CheckCircle, LogOut, ChefHat, AlertTriangle, Bell, PackageCheck, Play } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-// Sonido "Ding" embebido para no depender de archivos externos
 const NOTIFICATION_SOUND = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEIyAAAAjqZAANQAACqv/9D//8z///4n//5w/wH+B/8//4HgAAAAAiAAAD//OEJAAABuyqUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABqyiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABwSiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAAB2CiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
   const [tick, setTick] = useState(0); 
+  const [audioInitialized, setAudioInitialized] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  
   const { updateOrderStatus } = useOrders();
   const audioRef = useRef(new Audio(NOTIFICATION_SOUND));
-  const [soundEnabled, setSoundEnabled] = useState(false);
+
+  // Desbloquear audio (Importante para Chrome/Safari)
+  const initAudio = () => {
+    audioRef.current.play().then(() => {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setAudioInitialized(true);
+      setSoundEnabled(true);
+    }).catch(e => console.error("Error audio:", e));
+  };
 
   useEffect(() => {
-    // Escuchar Nuevos, En Proceso y Listos
     const q = query(
       collection(db, "orders"),
       where("status", "in", ["nuevo", "proceso", "listo"]),
@@ -29,23 +39,21 @@ export default function KitchenDisplay({ onLogout }) {
         ...doc.data()
       }));
       
-      // Reproducir sonido solo si hay órdenes nuevas añadidas
+      // Detectar nuevas órdenes
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added" && change.doc.data().status === 'nuevo') {
             if (soundEnabled) {
                 audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(e => console.log("Interacción requerida para audio"));
+                audioRef.current.play().catch(e => console.log("Audio bloqueado"));
             } else {
                 toast("¡Nueva Orden!", { icon: '🔔' });
             }
         }
       });
-
       setOrders(ordersData);
     });
 
-    const timer = setInterval(() => setTick(t => t + 1), 30000); // Actualizar colores cada 30s
-
+    const timer = setInterval(() => setTick(t => t + 1), 30000);
     return () => { unsubscribe(); clearInterval(timer); };
   }, [soundEnabled]);
 
@@ -53,23 +61,37 @@ export default function KitchenDisplay({ onLogout }) {
     let nextStatus = "proceso";
     if (order.status === "nuevo") nextStatus = "proceso";
     else if (order.status === "proceso") nextStatus = "listo";
-    else if (order.status === "listo") nextStatus = "despachado"; // Desaparece de pantalla
+    else if (order.status === "listo") nextStatus = "despachado"; 
 
     await updateOrderStatus(order.id, nextStatus);
   };
 
   const getUrgencyStyles = (timestamp, status) => {
     if (status === 'listo') return "border-l-8 border-green-600 bg-green-50"; 
-    
     if (!timestamp) return "border-l-8 border-slate-300 bg-white";
-    const now = new Date();
-    const orderTime = timestamp.toDate();
-    const diffMinutes = (now - orderTime) / 1000 / 60;
-
+    
+    const diffMinutes = (new Date() - timestamp.toDate()) / 1000 / 60;
     if (diffMinutes > 25) return "border-l-8 border-red-600 bg-red-50 animate-pulse"; 
     if (diffMinutes > 15) return "border-l-8 border-yellow-500 bg-yellow-50"; 
     return "border-l-8 border-blue-500 bg-white"; 
   };
+
+  // Pantalla de inicio para activar audio
+  if (!audioInitialized) {
+    return (
+      <div className="h-screen bg-slate-900 flex flex-col items-center justify-center text-white gap-6">
+        <ChefHat size={80} className="text-amber-500 animate-bounce"/>
+        <h1 className="text-3xl font-bold">Pantalla de Cocina</h1>
+        <button 
+          onClick={initAudio}
+          className="bg-green-600 px-8 py-4 rounded-xl font-bold text-xl shadow-lg hover:scale-105 transition flex items-center gap-3"
+        >
+          <Play size={24}/> INICIAR TURNO
+        </button>
+        <p className="text-slate-400 text-sm opacity-80">Click para activar alertas sonoras</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-4 md:p-6">
@@ -107,9 +129,7 @@ export default function KitchenDisplay({ onLogout }) {
                 <div className={`p-3 border-b border-slate-200 flex justify-between items-center ${isReady ? 'bg-green-200' : 'bg-white/50'}`}>
                     <span className="font-black text-2xl">#{order.number}</span>
                     <div className="text-right">
-                        <span className="text-[10px] font-bold uppercase block text-slate-500">
-                            {order.orderType || 'Mesa'}
-                        </span>
+                        <span className="text-[10px] font-bold uppercase block text-slate-500">{order.orderType || 'Mesa'}</span>
                         <span className="text-xs font-mono font-bold">
                             {order.createdAt?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
@@ -121,22 +141,17 @@ export default function KitchenDisplay({ onLogout }) {
                         {order.itemsSnapshot?.map((item, idx) => (
                             <li key={idx} className="text-sm border-b border-slate-100 pb-1 last:border-0">
                                 <div className="flex gap-2">
-                                    <span className="bg-slate-900 text-white font-bold px-1.5 py-0.5 rounded text-xs h-fit min-w-[24px] text-center">
-                                        {item.qty}
-                                    </span>
+                                    <span className="bg-slate-900 text-white font-bold px-1.5 py-0.5 rounded text-xs h-fit min-w-[24px] text-center">{item.qty}</span>
                                     <div className="leading-tight">
                                         <p className="font-bold text-slate-800">{item.name}</p>
                                         {item.details?.length > 0 && (
-                                            <p className="text-[11px] text-slate-600 italic">
-                                                {item.details.join(", ")}
-                                            </p>
+                                            <p className="text-[11px] text-slate-600 italic">{item.details.join(", ")}</p>
                                         )}
                                     </div>
                                 </div>
                             </li>
                         ))}
                     </ul>
-
                     {order.orderNotes && (
                         <div className="bg-yellow-100 p-2 rounded text-xs font-bold text-yellow-800 border-l-4 border-yellow-500">
                             Nota: {order.orderNotes}

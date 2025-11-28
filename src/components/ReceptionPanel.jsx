@@ -9,7 +9,7 @@ import MenuPanel from "./MenuPanel";
 import CartPanel from "./CartPanel";
 import TicketModal from "./TicketModal";
 import ProductOptionsModal from "./ProductOptionsModal";
-import OrdersHistoryModal from "./OrdersHistoryModal"; // Importamos el modal nuevo
+import OrdersHistoryModal from "./OrdersHistoryModal";
 
 export default function ReceptionPanel({ onLogout }) {
   const { menuItems } = useMenu();
@@ -25,29 +25,17 @@ export default function ReceptionPanel({ onLogout }) {
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
-  if (loadingConfig) {
-    return <div className="h-screen flex items-center justify-center bg-slate-100 font-bold animate-pulse">Cargando...</div>;
-  }
+  if (loadingConfig) return <div className="h-screen flex items-center justify-center bg-slate-100 font-bold animate-pulse">Cargando...</div>;
 
   const handleProductClick = (product) => {
     const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
     const isCombo = product.comboOptions && (product.comboOptions.hasDrink || product.comboOptions.hasSide);
     const isSpecialty = product.mainCategory === "Pizzas" && !isClassic; 
-
     if (isClassic || isCombo || isSpecialty) {
-      setSelectedProduct(product);
-      setShowProductModal(true);
+      setSelectedProduct(product); setShowProductModal(true);
     } else {
-      addToCart(product);
-      toast.success(`${product.name} agregado`, { duration: 1500, position: 'bottom-center' });
+      addToCart(product); toast.success("Agregado");
     }
-  };
-
-  const handleConfirmModal = (finalItem) => {
-    addToCart(finalItem);
-    setShowProductModal(false);
-    setSelectedProduct(null);
-    toast.success("Agregado", { duration: 2000, position: 'bottom-center' });
   };
 
   const handleCheckout = (formData) => {
@@ -59,106 +47,44 @@ export default function ReceptionPanel({ onLogout }) {
   const handleConfirmOrder = async () => {
     if (!pendingOrderData || loadingOrder) return;
     const toastId = toast.loading("Enviando...");
-
     try {
-      const finalTotal = Number(cartTotal.toFixed(2));
       const orderPayload = {
         ...pendingOrderData,
-        total: finalTotal,
-        subtotal: finalTotal,
+        total: Number(cartTotal.toFixed(2)),
+        subtotal: Number(cartTotal.toFixed(2)),
         customerName: pendingOrderData.customerName || "Cliente Mostrador"
       };
-
       const { number, id } = await saveOrder({ orderData: orderPayload, cartItems: cart });
-
       setTicketInfo(prev => ({ ...prev, orderId: id, orderNumber: number }));
       toast.success(`Orden #${number} creada`, { id: toastId });
       clearCart();
-    } catch (error) {
-      console.error(error);
-      toast.error("Error al guardar", { id: toastId });
-    }
+    } catch (error) { toast.error("Error al guardar", { id: toastId }); }
   };
 
-  // Función para re-imprimir desde el modal de historial
   const handleReprint = (order) => {
     setPendingOrderData({
-        customerName: order.customerName,
-        orderType: order.orderType,
-        customerPhone: order.customerPhone,
-        customerAddress: order.customerAddress,
-        orderNotes: order.orderNotes
+        customerName: order.customerName, orderType: order.orderType,
+        customerPhone: order.customerPhone, customerAddress: order.customerAddress, orderNotes: order.orderNotes
     });
-    setTicketInfo({
-        orderId: order.id,
-        orderNumber: order.number,
-        items: order.itemsSnapshot || []
-    });
-    setShowTicket(true);
-    setShowHistory(false);
+    setTicketInfo({ orderId: order.id, orderNumber: order.number, items: order.itemsSnapshot || [] });
+    setShowTicket(true); setShowHistory(false);
   };
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden relative">
       <div className="absolute top-4 right-4 z-50 flex gap-2">
-        <button 
-            onClick={() => setShowHistory(true)}
-            className="bg-white text-slate-700 p-2 rounded-full shadow-lg hover:bg-slate-50 transition-transform active:scale-95 border border-slate-200"
-            title="Historial"
-        >
-            <History size={18} />
-        </button>
-        <button 
-            onClick={onLogout}
-            className="bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700 transition-transform active:scale-95"
-            title="Cerrar Sesión"
-        >
-            <LogOut size={18} />
-        </button>
+        <button onClick={() => setShowHistory(true)} className="bg-white text-slate-700 p-2 rounded-full shadow-lg hover:bg-slate-50 border border-slate-200" title="Historial"><History size={18} /></button>
+        <button onClick={onLogout} className="bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700" title="Cerrar Sesión"><LogOut size={18} /></button>
       </div>
-
       <div className="flex-1 min-h-0 h-full">
         <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
       </div>
-
       <div className="w-full md:w-auto md:border-l md:border-slate-200 shadow-xl z-10">
-        <CartPanel
-          cart={cart}
-          cartTotal={cartTotal}
-          updateQty={updateQty}
-          removeFromCart={removeFromCart}
-          onCheckout={handleCheckout}
-          showTicket={showTicket}
-          lastOrderNumber={ticketInfo.orderNumber}
-          loadingOrder={loadingOrder}
-        />
+        <CartPanel cart={cart} cartTotal={cartTotal} updateQty={updateQty} removeFromCart={removeFromCart} onCheckout={handleCheckout} showTicket={showTicket} lastOrderNumber={ticketInfo.orderNumber} loadingOrder={loadingOrder} />
       </div>
-
-      <ProductOptionsModal
-        isOpen={showProductModal}
-        product={selectedProduct}
-        globalConfig={config}
-        onClose={() => setShowProductModal(false)}
-        onConfirm={handleConfirmModal}
-      />
-
-      <TicketModal
-        isOpen={showTicket}
-        onClose={() => { setShowTicket(false); setPendingOrderData(null); }}
-        onConfirm={handleConfirmOrder}
-        ticketItems={ticketInfo.items}
-        orderData={pendingOrderData || {}}
-        currentOrderId={ticketInfo.orderId}
-        currentOrderNumber={ticketInfo.orderNumber}
-        loading={loadingOrder}
-        tempQrId={Date.now()}
-      />
-
-      <OrdersHistoryModal 
-        isOpen={showHistory} 
-        onClose={() => setShowHistory(false)} 
-        onReprint={handleReprint}
-      />
+      <ProductOptionsModal isOpen={showProductModal} product={selectedProduct} globalConfig={config} onClose={() => setShowProductModal(false)} onConfirm={(item) => { addToCart(item); setShowProductModal(false); }} />
+      <TicketModal isOpen={showTicket} onClose={() => { setShowTicket(false); setPendingOrderData(null); }} onConfirm={handleConfirmOrder} ticketItems={ticketInfo.items} orderData={pendingOrderData || {}} currentOrderId={ticketInfo.orderId} currentOrderNumber={ticketInfo.orderNumber} loading={loadingOrder} tempQrId={Date.now()} />
+      <OrdersHistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} onReprint={handleReprint} />
     </div>
   );
 }
