@@ -1,48 +1,70 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Función auxiliar que NO lee base de datos, solo verifica el token (GRATIS)
-    function hasRole(role) {
-      return request.auth != null && request.auth.token[role] == true;
+
+    // --- FUNCIONES DE AYUDA (LÓGICA HÍBRIDA) ---
+
+    // 1. Verifica si es Staff (Admin, Cocina o Recepción)
+    // Estrategia: Intenta leer del Token (Gratis) O lee de la Base de Datos (1 Lectura)
+    function isStaff() {
+      return isStaffToken() || isStaffDB();
     }
 
-    // Regla para Staff (Cualquiera con rol válido) usando Custom Claims
-    function isStaff() {
-      return request.auth != null && (
-        request.auth.token.admin == true || 
-        request.auth.token.cocina == true || 
-        request.auth.token.recepcion == true
-      );
+    // Opción A: Verificación por Token (Optimizado - Costo $0)
+    // Solo funcionará si en el futuro configuras Custom Claims
+    function isStaffToken() {
+      return request.auth.token.role in ['admin', 'cocina', 'recepcion'] ||
+             request.auth.token.admin == true ||
+             request.auth.token.cocina == true || 
+             request.auth.token.recepcion == true;
     }
+
+    // Opción B: Verificación por Base de Datos (Estándar - Costo 1 Lectura)
+    // Esta es la que hará que tu sistema funcione AHORA MISMO
+    function isStaffDB() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'cocina', 'recepcion'];
+    }
+
+    // 2. Verifica si es Admin específicamente
+    function isAdmin() {
+      return (request.auth.token.role == 'admin' || request.auth.token.admin == true) || 
+             (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // --- REGLAS DE LAS COLECCIONES ---
 
     match /users/{userId} {
-      // El usuario puede leer su propio perfil, o un admin puede leer todo
-      allow read: if request.auth != null && (request.auth.uid == userId || hasRole('admin'));
-      allow write: if hasRole('admin'); 
+      // El usuario puede leer su propio perfil. Admin puede leer todo.
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
     }
     
     match /orders/{orderId} {
       allow read, write: if isStaff();
-      match /items/{itemId} { allow read, write: if isStaff(); }
+      
+      // Regla para items dentro de la orden
+      match /items/{itemId} { 
+        allow read, write: if isStaff(); 
+      }
     }
 
+    // AQUÍ ESTABA EL ERROR DE ANALÍTICAS
+    // Ahora usa isStaff() que incluye el método seguro
     match /daily_stats/{dateId} {
       allow read: if isStaff();
-      // Permitimos escribir solo si es staff para actualizar contadores
       allow write: if isStaff(); 
     }
 
     match /menuItems/{itemId} {
-      allow read: if isStaff();
-      allow write: if hasRole('admin') 
-                   && request.resource.data.price is number 
-                   && request.resource.data.price > 0;
+      allow read: if request.auth != null; // Cualquiera autenticado puede ver el menú
+      allow write: if isAdmin(); // Solo admin modifica precios
     }
     
     match /configuration/{configId} {
       allow read: if isStaff();
-      allow write: if hasRole('admin');
+      allow write: if isAdmin();
     }
     
     match /counters/{counterId} {

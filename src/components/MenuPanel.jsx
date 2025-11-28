@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, UtensilsCrossed, Flame } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
 export default function MenuPanel({ menuItems, onProductClick }) {
@@ -7,7 +7,7 @@ export default function MenuPanel({ menuItems, onProductClick }) {
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredProducts = useMemo(() => {
-    // 1. Filtrar solo por categoría principal (Pizzas, Bebidas, etc.)
+    // 1. Filtrar solo por categoría principal
     let products = menuItems.filter((item) => item.mainCategory === activeCategory);
 
     // 2. Buscador
@@ -20,28 +20,29 @@ export default function MenuPanel({ menuItems, onProductClick }) {
   }, [menuItems, activeCategory, searchQuery]);
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Header */}
-      <div className="bg-amber-900 text-white p-4 shadow-md flex justify-between items-center shrink-0">
+    <div className="flex-1 flex flex-col h-full bg-slate-50">
+      {/* Header y Buscador */}
+      <div className="bg-white px-6 py-5 shadow-sm flex justify-between items-center shrink-0 border-b border-slate-200 z-10">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Pizza Brava <span className="text-amber-400">POS</span>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
+            <Flame className="text-orange-600 fill-orange-600" /> 
+            Pizza Brava
           </h1>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+        <div className="relative group">
+          <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={20} />
           <input
             type="text"
-            placeholder="Buscar..."
-            className="pl-10 pr-4 py-2 rounded-full bg-amber-800 border-none text-white placeholder-amber-300/50 focus:ring-2 focus:ring-amber-500 outline-none w-48"
+            placeholder="Buscar producto..."
+            className="pl-10 pr-4 py-2.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-orange-500 focus:bg-white focus:border-transparent outline-none w-64 transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Categorías Principales (Sin submenús) */}
-      <div className="flex bg-white shadow-sm overflow-x-auto scrollbar-hide shrink-0">
+      {/* Categorías (Tabs estilo Píldora) */}
+      <div className="px-6 py-4 bg-white border-b border-slate-200/60 overflow-x-auto no-scrollbar flex gap-2 shrink-0">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -49,10 +50,10 @@ export default function MenuPanel({ menuItems, onProductClick }) {
               setActiveCategory(cat.id);
               setSearchQuery("");
             }}
-            className={`flex-shrink-0 px-6 py-4 font-medium transition-colors border-b-4 ${
+            className={`flex-shrink-0 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 transform active:scale-95 whitespace-nowrap ${
               activeCategory === cat.id
-                ? "border-amber-600 text-amber-900 bg-amber-50"
-                : "border-transparent text-slate-500 hover:bg-slate-50"
+                ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20"
+                : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
             }`}
           >
             {cat.label}
@@ -61,37 +62,50 @@ export default function MenuPanel({ menuItems, onProductClick }) {
       </div>
 
       {/* Grid de Productos */}
-      <div className="flex-1 overflow-y-auto p-4 bg-slate-100">
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
         {filteredProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400">
-            <p>No hay productos en esta categoría.</p>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
+            <UtensilsCrossed size={64} className="mb-4 stroke-1"/>
+            <p className="text-lg font-medium">No hay productos en esta categoría.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 pb-20 md:pb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-5 pb-20 md:pb-4">
             {filteredProducts.map((product) => (
               <button
                 key={product.id}
                 onClick={() => onProductClick(product)}
-                className="bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition-all border border-slate-200 flex flex-col items-start text-left group active:scale-95 h-full relative"
+                className="bg-white rounded-2xl shadow-sm border border-slate-200/60 flex flex-col items-start text-left group relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:border-orange-200 hover:-translate-y-1 active:scale-[0.98] h-full"
               >
-                <div className="w-full flex justify-between items-start mb-2">
-                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
-                    {product.station || "cocina"}
-                  </span>
-                  <span className="font-bold text-lg text-slate-900">
-                    ${product.price?.toFixed(2)}
-                  </span>
+                {/* Decoración superior */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-red-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+                <div className="p-5 w-full flex flex-col h-full">
+                    <div className="flex justify-between items-start mb-3 w-full">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${
+                            product.station === 'cocina' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                            {product.station || "cocina"}
+                        </span>
+                    </div>
+                    
+                    <h3 className="font-bold text-slate-700 group-hover:text-orange-600 transition-colors text-lg leading-tight mb-1 line-clamp-2">
+                        {product.name}
+                    </h3>
+                    
+                    <p className="text-xs text-slate-400 line-clamp-2 mb-4 flex-1">
+                        {/* Descripción simulada si no existe en DB */}
+                        {product.description || "Deliciosa preparación especial de la casa."}
+                    </p>
+
+                    <div className="w-full flex justify-between items-end mt-auto">
+                        <span className="font-black text-xl text-slate-900 group-hover:text-slate-700">
+                            ${product.price?.toFixed(2)}
+                        </span>
+                        <div className="bg-slate-100 p-2 rounded-lg text-slate-400 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        </div>
+                    </div>
                 </div>
-                <h3 className="font-semibold text-slate-700 group-hover:text-amber-700 leading-tight line-clamp-2">
-                  {product.name}
-                </h3>
-                
-                {/* Etiqueta visual solo si es Pizza Clásica */}
-                {(product.pizzaType === "Clasica" || product.name.includes("Clásica")) && (
-                  <span className="absolute bottom-4 right-4 text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                    Armar
-                  </span>
-                )}
               </button>
             ))}
           </div>
