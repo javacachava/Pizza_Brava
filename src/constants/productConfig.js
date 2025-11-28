@@ -1,16 +1,17 @@
 export const FALLBACK_CONFIG = {
-  ingredients: [], 
-  sides: [],       
-  drinks: [],     
+  ingredients: ["Jamón", "Pepperoni", "Hongos", "Pimiento", "Cebolla", "Aceitunas"],
+  sides: ["Pan con Ajo", "Nudos", "Papas"],
+  drinks: ["Coca Cola", "Fanta", "Agua", "Cerveza"],
   rules: {
-    ingredientPrice: 0,
+    ingredientPrice: 0.75,
     sizes: {
       Personal: { label: "Personal", priceModifier: 0 },
-      Grande: { label: "Gigante", priceModifier: 0 }
+      Grande: { label: "Gigante", priceModifier: 5.00 }
     }
   }
 };
 
+// Exportaciones para compatibilidad
 export const INGREDIENTS_LIST = FALLBACK_CONFIG.ingredients;
 export const SIDES_LIST = FALLBACK_CONFIG.sides;
 export const DRINKS_LIST = FALLBACK_CONFIG.drinks;

@@ -1,33 +1,45 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, Shield, Key
+  BarChart2, Edit, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, Shield, Key 
 } from "lucide-react";
 import { 
   doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { db } from "../services/firebase";
+// ✅ IMPORTAMOS LA CONFIGURACIÓN CENTRALIZADA
+import { db, firebaseConfig } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 import { toast } from "react-hot-toast";
 
-// Configuración para la "App Secundaria" (Creación de usuarios)
-// Esto permite crear usuarios sin desloguear al admin actual
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
-};
-
 const CATEGORY_OPTIONS = [
   "Pizzas", "Bebidas", "Hamburguesas", "Birrias", "Platos", "Entradas", "Complementos"
 ];
+
+// ✅ OPTIMIZACIÓN: Componente extraído fuera para evitar re-renderizados lentos
+const ListEditor = ({ title, items, setItems }) => {
+  const [val, setVal] = useState("");
+  return (
+    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <h4 className="font-bold text-xs uppercase text-slate-500 mb-3 flex justify-between">
+          {title} <span className="bg-slate-100 px-2 rounded text-slate-600">{items.length}</span>
+      </h4>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {items.map((item, i) => (
+          <span key={i} className="bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs flex items-center gap-1 text-slate-700">
+            {item} <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 font-bold ml-1"><XIcon size={12}/></button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input className="border p-2 rounded text-sm flex-1 outline-none focus:border-amber-500" value={val} onChange={e => setVal(e.target.value)} placeholder="Agregar..." />
+        <button onClick={() => { if(val.trim()) { setItems([...items, val.trim()]); setVal(""); } }} className="bg-amber-600 text-white p-2 rounded hover:bg-amber-700"><Plus size={16}/></button>
+      </div>
+    </div>
+  );
+};
 
 export default function AdminPanel({ onLogout }) {
   const [activeTab, setActiveTab] = useState("analytics"); 
@@ -118,11 +130,10 @@ export default function AdminPanel({ onLogout }) {
 
   const handleSaveProduct = async () => {
     if (!formData.name?.trim()) return toast.error("El nombre es obligatorio");
-    if (formData.price === "" || formData.price === null) return toast.error("El precio es obligatorio");
     
     const priceVal = parseFloat(formData.price);
-    // ✅ MEJORA: Validación para impedir precio 0 o negativo
-    if (isNaN(priceVal) || priceVal <= 0) return toast.error("El precio debe ser mayor a 0");
+    // ✅ VALIDACIÓN CORREGIDA: Precio debe ser > 0
+    if (isNaN(priceVal) || priceVal <= 0) return toast.error("El precio debe ser mayor a $0.00");
 
     const productData = {
       name: formData.name.trim(),
@@ -172,9 +183,9 @@ export default function AdminPanel({ onLogout }) {
       setProducts(products.filter(p => p.id !== id));
       toast.success("Producto eliminado");
     } catch (e) { 
-      // ✅ MEJORA: Logging del error real para depuración
-      console.error("Error borrando producto:", e);
-      toast.error("Error al eliminar: " + e.message); 
+      // ✅ MEJORA: Log detallado para depuración
+      console.error("Error al eliminar producto:", e);
+      toast.error("Error al eliminar. Revisa la consola."); 
     }
   };
 
@@ -198,8 +209,7 @@ export default function AdminPanel({ onLogout }) {
     if (newUser.password.length < 6) return toast.error("Contraseña muy corta (min 6)");
 
     const toastId = toast.loading("Registrando usuario...");
-    
-    // Inicializamos una app secundaria para no cerrar la sesión del admin
+    // ✅ Usamos la config importada
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -228,8 +238,6 @@ export default function AdminPanel({ onLogout }) {
         let msg = "Error al crear usuario";
         if (error.code === 'auth/email-already-in-use') msg = "El correo ya existe";
         toast.error(msg, { id: toastId });
-        // Limpiar la app secundaria en caso de error
-        try { deleteApp(secondaryApp); } catch(e){}
     }
   };
 
@@ -271,28 +279,6 @@ export default function AdminPanel({ onLogout }) {
     } catch (e) { 
         toast.error("Error al guardar", { id: toastId }); 
     }
-  };
-
-  const ListEditor = ({ title, items, setItems }) => {
-    const [val, setVal] = useState("");
-    return (
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-        <h4 className="font-bold text-xs uppercase text-slate-500 mb-3 flex justify-between">
-            {title} <span className="bg-slate-100 px-2 rounded text-slate-600">{items.length}</span>
-        </h4>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {items.map((item, i) => (
-            <span key={i} className="bg-slate-50 border border-slate-200 px-2 py-1 rounded text-xs flex items-center gap-1 text-slate-700">
-              {item} <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600 font-bold ml-1"><XIcon size={12}/></button>
-            </span>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <input className="border p-2 rounded text-sm flex-1 outline-none focus:border-amber-500" value={val} onChange={e => setVal(e.target.value)} placeholder="Agregar..." />
-          <button onClick={() => { if(val.trim()) { setItems([...items, val.trim()]); setVal(""); } }} className="bg-amber-600 text-white p-2 rounded hover:bg-amber-700"><Plus size={16}/></button>
-        </div>
-      </div>
-    );
   };
 
   if (loadingConfig) return <div className="h-screen flex items-center justify-center">Cargando Panel...</div>;
