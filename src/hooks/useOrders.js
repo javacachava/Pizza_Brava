@@ -5,7 +5,11 @@ import {
   serverTimestamp,
   writeBatch,
   collection,
-  updateDoc
+  updateDoc,
+  getDocs,
+  query,
+  where,
+  limit
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { toast } from "react-hot-toast";
@@ -14,10 +18,7 @@ export function useOrders() {
   const [loading, setLoading] = useState(false);
 
   const generateOrderNumber = async () => {
-    // Si no hay red, no intentamos la transacción (que fallaría)
-    if (!navigator.onLine) {
-        return { number: "PENDIENTE", isOffline: true };
-    }
+    if (!navigator.onLine) return { number: "PENDIENTE", isOffline: true };
 
     const todayStr = new Date().toISOString().split("T")[0];
     const counterRef = doc(db, "counters", "orders");
@@ -34,16 +35,12 @@ export function useOrders() {
           }
         }
 
-        transaction.set(counterRef, {
-          today: todayStr,
-          lastNumber: nextNumber
-        });
+        transaction.set(counterRef, { today: todayStr, lastNumber: nextNumber });
         return nextNumber;
       });
       return { number, isOffline: false };
     } catch (e) {
-      console.error("Error transacción (posiblemente offline):", e);
-      // Fallback seguro si la transacción falla
+      console.error("Error transacción:", e);
       return { number: "PENDIENTE", isOffline: true };
     }
   };
@@ -51,9 +48,7 @@ export function useOrders() {
   const saveOrder = async ({ orderData, cartItems }) => {
     setLoading(true);
     try {
-      // 1. Obtener número (con manejo seguro de offline)
       const { number, isOffline } = await generateOrderNumber();
-      
       const batch = writeBatch(db);
       const newOrderRef = doc(collection(db, "orders"));
 
@@ -63,52 +58,43 @@ export function useOrders() {
         price: item.price,
         qty: item.qty,
         mainCategory: item.mainCategory || "Otros",
-        total: item.price * item.qty
+        total: item.price * item.qty,
+        details: item.details || [] 
       }));
 
-      // 2. Preparar datos con flag de sincronización
       const orderPayload = {
         ...orderData,
-        number, // Será un número o "PENDIENTE"
+        number,
         itemsSnapshot,
         createdAt: serverTimestamp(),
-        createdBy: "recepcion-tablet",
-        syncStatus: isOffline ? "pending" : "synced", // ✅ Nuevo campo
-        originalOfflineId: isOffline ? newOrderRef.id : null
+        createdBy: "recepcion",
+        status: "nuevo", // nuevo -> proceso -> listo -> despachado
+        syncStatus: isOffline ? "pending" : "synced"
       };
 
       batch.set(newOrderRef, orderPayload);
 
-      // Subcolección (por compatibilidad)
+      // Subcolección para items (opcional, para reportes profundos)
       cartItems.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
           menuId: item.id,
           name: item.name,
           qty: item.qty,
-          unitPrice: item.price,
-          lineTotal: item.price * item.qty,
-          station: item.station,
-          status: "pendiente",
-          notes: ""
+          price: item.price
         });
       });
 
-      // 3. Escritura optimista
-      // Si estamos offline, commit() se resolverá cuando se escriba en IndexedDB,
-      // pero no esperamos confirmación del servidor para desbloquear la UI.
-      
       if (isOffline) {
-          batch.commit(); // "Fire and forget" para la UI
-          toast("Guardado en dispositivo (Sin conexión)", { icon: '💾' });
+          batch.commit();
+          toast("Guardado localmente (Sin Internet)", { icon: '💾' });
       } else {
-          await batch.commit(); // Esperar confirmación real si hay red
+          await batch.commit();
       }
 
       return { number, id: newOrderRef.id, isOffline };
-
     } catch (error) {
-      console.error("Error crítico guardando orden:", error);
+      console.error("Error guardando orden:", error);
       toast.error("No se pudo guardar la orden");
       throw error;
     } finally {
@@ -119,13 +105,49 @@ export function useOrders() {
   const updateOrderStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "orders", orderId);
-      // Usamos updateDoc normal, si está offline se encola automáticamente
       await updateDoc(orderRef, { status: newStatus });
     } catch (error) {
-      console.error("Error actualizando orden:", error);
-      toast.error("Error al actualizar estado");
+      console.error("Error actualizando estado:", error);
+      toast.error("Error de conexión");
     }
   };
 
-  return { saveOrder, updateOrderStatus, loading };
+  // Función de Mantenimiento: Mueve órdenes viejas a 'archived_orders'
+  const archiveOldOrders = async () => {
+    setLoading(true);
+    try {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+        const q = query(
+            collection(db, "orders"), 
+            where("createdAt", "<", ninetyDaysAgo),
+            limit(100)
+        );
+
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) return 0;
+
+        const batch = writeBatch(db);
+        let count = 0;
+
+        snapshot.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            const archiveRef = doc(db, "archived_orders", docSnap.id);
+            batch.set(archiveRef, { ...data, archivedAt: serverTimestamp() });
+            batch.delete(docSnap.ref);
+            count++;
+        });
+
+        await batch.commit();
+        return count;
+    } catch (e) {
+        console.error("Error archivando:", e);
+        return 0;
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  return { saveOrder, updateOrderStatus, archiveOldOrders, loading };
 }

@@ -2,57 +2,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- FUNCIONES DE ACCESO DIRECTO ---
+    // --- LÓGICA DE SEGURIDAD BASADA EN DATOS (ZERO-CONFIG) ---
     
+    // 1. Obtener datos del usuario actual desde la DB
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // 2. Verificar si el usuario existe y está activo
     function isUserActive() {
-      // Verifica si existe y si el campo 'active' es true
       let user = getUserData();
       return user != null && user.active == true;
     }
 
+    // 3. Verificar roles leyendo el campo 'role' del documento
     function hasRole(role) {
-      // Verifica si el usuario tiene el rol específico guardado en su documento
       return isUserActive() && getUserData().role == role;
     }
     
+    // 4. Staff es cualquiera activo con rol válido
     function isStaff() {
-      // Cualquiera activo con rol válido es Staff
       return isUserActive() && (getUserData().role in ['recepcion', 'cocina', 'admin']);
     }
 
-    // --- REGLAS SIMPLIFICADAS ---
+    // --- REGLAS POR COLECCIÓN ---
 
-    // 1. Usuarios: El admin controla todo. El usuario solo se lee a sí mismo.
+    // Usuarios: 
+    // - Admin puede leer/escribir todo (para gestionar empleados).
+    // - El empleado solo puede leer su propio perfil (para el login).
     match /users/{userId} {
       allow read: if (request.auth != null && request.auth.uid == userId) || hasRole('admin');
       allow write: if hasRole('admin'); 
     }
 
-    // 2. Contadores (Para generar IDs de órdenes)
+    // Contadores (Vital para IDs de órdenes): Solo Staff
     match /counters/{counterId} {
       allow read, write: if isStaff();
     }
 
-    // 3. Órdenes (Cualquier empleado puede trabajar con órdenes)
+    // Órdenes: Todo el Staff puede operar
     match /orders/{orderId} {
       allow read, write: if isStaff();
       
+      // Items dentro de la orden
       match /items/{itemId} {
         allow read, write: if isStaff();
       }
     }
 
-    // 4. Menú (Todos leen, solo Admin edita)
+    // Menú y Configuración:
+    // - Staff lee (para vender).
+    // - Solo Admin escribe (para editar precios/productos).
     match /menuItems/{itemId} {
       allow read: if isStaff(); 
       allow write: if hasRole('admin');
     }
     
-    // 5. Configuración (Igual que el menú)
     match /configuration/{configId} {
       allow read: if isStaff();
       allow write: if hasRole('admin');
