@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { toast } from "react-hot-toast";
+import { ROLES, STATUS } from "../constants/types"; // Importamos constantes
 
 export function useOrders() {
   const [loading, setLoading] = useState(false);
@@ -67,8 +68,8 @@ export function useOrders() {
         number,
         itemsSnapshot,
         createdAt: serverTimestamp(),
-        createdBy: "recepcion",
-        status: "nuevo", 
+        createdBy: ROLES.RECEPTION,
+        status: STATUS.NEW, 
         syncStatus: isOffline ? "pending" : "synced"
       };
 

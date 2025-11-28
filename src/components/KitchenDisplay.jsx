@@ -4,32 +4,38 @@ import { db } from "../services/firebase";
 import { useOrders } from "../hooks/useOrders";
 import { Clock, CheckCircle, LogOut, ChefHat, AlertTriangle, Bell, PackageCheck, Play } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { ROLES, STATUS } from "../constants/types"; // Importamos constantes
 
 const NOTIFICATION_SOUND = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEIyAAAAjqZAANQAACqv/9D//8z///4n//5w/wH+B/8//4HgAAAAAiAAAD//OEJAAABuyqUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABqyiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABwSiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAAB2CiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
   const [tick, setTick] = useState(0); 
-  const [audioInitialized, setAudioInitialized] = useState(false);
+  const [audioInitialized, setAudioInitialized] = useState(false); // Estado para controlar el bloqueo de audio
   const [soundEnabled, setSoundEnabled] = useState(false);
   
   const { updateOrderStatus } = useOrders();
   const audioRef = useRef(new Audio(NOTIFICATION_SOUND));
 
-  // Desbloquear audio (Importante para Chrome/Safari)
+  // Función para desbloquear el contexto de audio del navegador
   const initAudio = () => {
     audioRef.current.play().then(() => {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       setAudioInitialized(true);
       setSoundEnabled(true);
-    }).catch(e => console.error("Error audio:", e));
+    }).catch(e => {
+      console.error("Error inicializando audio:", e);
+      // Aún si falla, permitimos entrar a la app
+      setAudioInitialized(true);
+    });
   };
 
   useEffect(() => {
+    // Usamos las constantes para la query
     const q = query(
       collection(db, "orders"),
-      where("status", "in", ["nuevo", "proceso", "listo"]),
+      where("status", "in", [STATUS.NEW, STATUS.PROCESS, STATUS.READY]),
       orderBy("createdAt", "asc")
     );
 
@@ -39,12 +45,12 @@ export default function KitchenDisplay({ onLogout }) {
         ...doc.data()
       }));
       
-      // Detectar nuevas órdenes
+      // Detectar nuevas órdenes para sonar
       snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && change.doc.data().status === 'nuevo') {
+        if (change.type === "added" && change.doc.data().status === STATUS.NEW) {
             if (soundEnabled) {
                 audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(e => console.log("Audio bloqueado"));
+                audioRef.current.play().catch(e => console.log("Audio bloqueado por navegador"));
             } else {
                 toast("¡Nueva Orden!", { icon: '🔔' });
             }
@@ -58,16 +64,16 @@ export default function KitchenDisplay({ onLogout }) {
   }, [soundEnabled]);
 
   const handleStatusChange = async (order) => {
-    let nextStatus = "proceso";
-    if (order.status === "nuevo") nextStatus = "proceso";
-    else if (order.status === "proceso") nextStatus = "listo";
-    else if (order.status === "listo") nextStatus = "despachado"; 
+    let nextStatus = STATUS.PROCESS;
+    if (order.status === STATUS.NEW) nextStatus = STATUS.PROCESS;
+    else if (order.status === STATUS.PROCESS) nextStatus = STATUS.READY;
+    else if (order.status === STATUS.READY) nextStatus = STATUS.DELIVERED; 
 
     await updateOrderStatus(order.id, nextStatus);
   };
 
   const getUrgencyStyles = (timestamp, status) => {
-    if (status === 'listo') return "border-l-8 border-green-600 bg-green-50"; 
+    if (status === STATUS.READY) return "border-l-8 border-green-600 bg-green-50"; 
     if (!timestamp) return "border-l-8 border-slate-300 bg-white";
     
     const diffMinutes = (new Date() - timestamp.toDate()) / 1000 / 60;
@@ -76,19 +82,21 @@ export default function KitchenDisplay({ onLogout }) {
     return "border-l-8 border-blue-500 bg-white"; 
   };
 
-  // Pantalla de inicio para activar audio
+  // 1. Pantalla de Bloqueo "Iniciar Turno" (Solución al Autoplay)
   if (!audioInitialized) {
     return (
-      <div className="h-screen bg-slate-900 flex flex-col items-center justify-center text-white gap-6">
+      <div className="h-screen bg-slate-900 flex flex-col items-center justify-center text-white gap-6 p-4">
         <ChefHat size={80} className="text-amber-500 animate-bounce"/>
-        <h1 className="text-3xl font-bold">Pantalla de Cocina</h1>
+        <h1 className="text-3xl font-bold text-center">Pantalla de Cocina</h1>
         <button 
           onClick={initAudio}
-          className="bg-green-600 px-8 py-4 rounded-xl font-bold text-xl shadow-lg hover:scale-105 transition flex items-center gap-3"
+          className="bg-green-600 px-8 py-4 rounded-xl font-bold text-xl shadow-lg hover:scale-105 transition flex items-center gap-3 animate-pulse"
         >
           <Play size={24}/> INICIAR TURNO
         </button>
-        <p className="text-slate-400 text-sm opacity-80">Click para activar alertas sonoras</p>
+        <p className="text-slate-400 text-sm opacity-80 text-center max-w-md">
+          Al hacer clic, se activarán las alertas sonoras para nuevas órdenes.
+        </p>
       </div>
     );
   }
@@ -122,7 +130,7 @@ export default function KitchenDisplay({ onLogout }) {
 
         {orders.map(order => {
             const urgencyClass = getUrgencyStyles(order.createdAt, order.status);
-            const isReady = order.status === 'listo';
+            const isReady = order.status === STATUS.READY;
 
             return (
             <div key={order.id} className={`rounded-xl overflow-hidden shadow-lg flex flex-col text-slate-900 h-full ${urgencyClass}`}>
@@ -162,14 +170,14 @@ export default function KitchenDisplay({ onLogout }) {
                 <button 
                     onClick={() => handleStatusChange(order)}
                     className={`w-full py-4 font-bold text-sm uppercase flex justify-center items-center gap-2 transition-colors mt-auto ${
-                        order.status === 'nuevo' ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 
-                        order.status === 'proceso' ? 'bg-blue-600 hover:bg-blue-700 text-white' :
+                        order.status === STATUS.NEW ? 'bg-slate-200 hover:bg-slate-300 text-slate-700' : 
+                        order.status === STATUS.PROCESS ? 'bg-blue-600 hover:bg-blue-700 text-white' :
                         'bg-green-600 hover:bg-green-700 text-white'
                     }`}
                 >
-                    {order.status === 'nuevo' && <>Empezar <ChefHat size={18}/></>}
-                    {order.status === 'proceso' && <>Marcar Listo <CheckCircle size={18}/></>}
-                    {order.status === 'listo' && <>Entregar <PackageCheck size={18}/></>}
+                    {order.status === STATUS.NEW && <>Empezar <ChefHat size={18}/></>}
+                    {order.status === STATUS.PROCESS && <>Marcar Listo <CheckCircle size={18}/></>}
+                    {order.status === STATUS.READY && <>Entregar <PackageCheck size={18}/></>}
                 </button>
             </div>
             );

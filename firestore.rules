@@ -1,66 +1,48 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- LÓGICA DE SEGURIDAD BASADA EN DATOS (ZERO-CONFIG) ---
     
-    // 1. Obtener datos del usuario actual desde la DB
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-
-    // 2. Verificar si el usuario existe y está activo
-    function isUserActive() {
-      let user = getUserData();
-      return user != null && user.active == true;
-    }
-
-    // 3. Verificar roles leyendo el campo 'role' del documento
-    function hasRole(role) {
-      return isUserActive() && getUserData().role == role;
-    }
-    
-    // 4. Staff es cualquiera activo con rol válido
     function isStaff() {
-      return isUserActive() && (getUserData().role in ['recepcion', 'cocina', 'admin']);
+      let user = getUserData();
+      return user != null && user.active == true && (user.role in ['recepcion', 'cocina', 'admin']);
+    }
+    function hasRole(role) {
+      let user = getUserData();
+      return user != null && user.active == true && user.role == role;
     }
 
-    // --- REGLAS POR COLECCIÓN ---
-
-    // Usuarios: 
-    // - Admin puede leer/escribir todo (para gestionar empleados).
-    // - El empleado solo puede leer su propio perfil (para el login).
     match /users/{userId} {
       allow read: if (request.auth != null && request.auth.uid == userId) || hasRole('admin');
       allow write: if hasRole('admin'); 
     }
-
-    // Contadores (Vital para IDs de órdenes): Solo Staff
-    match /counters/{counterId} {
-      allow read, write: if isStaff();
-    }
-
-    // Órdenes: Todo el Staff puede operar
+    
     match /orders/{orderId} {
       allow read, write: if isStaff();
-      
-      // Items dentro de la orden
-      match /items/{itemId} {
-        allow read, write: if isStaff();
-      }
+      match /items/{itemId} { allow read, write: if isStaff(); }
     }
 
-    // Menú y Configuración:
-    // - Staff lee (para vender).
-    // - Solo Admin escribe (para editar precios/productos).
+    // MEJORA: Validación de tipos de datos para evitar errores en reportes
     match /menuItems/{itemId} {
-      allow read: if isStaff(); 
-      allow write: if hasRole('admin');
+      allow read: if isStaff();
+      allow write: if hasRole('admin') 
+                   && request.resource.data.price is number 
+                   && request.resource.data.price > 0;
     }
     
     match /configuration/{configId} {
       allow read: if isStaff();
       allow write: if hasRole('admin');
+    }
+    
+    match /counters/{counterId} {
+      allow read, write: if isStaff();
+    }
+    
+    match /archived_orders/{orderId} {
+       allow read, write: if isStaff(); 
     }
   }
 }

@@ -8,7 +8,9 @@ import { useConfig } from "../hooks/useConfig";
 import { useOrders } from "../hooks/useOrders";
 import AnalyticsPanel from "./AnalyticsPanel";
 import { toast } from "react-hot-toast";
+import { ROLES } from "../constants/types"; // Importamos constantes
 
+// Componente auxiliar ListEditor (sin cambios)
 const ListEditor = ({ title, items, setItems }) => {
   const [val, setVal] = useState("");
   return (
@@ -27,6 +29,7 @@ export default function AdminPanel({ onLogout }) {
   const { config, loadingConfig } = useConfig();
   const { archiveOldOrders } = useOrders();
   
+  // Limpieza automática
   useEffect(() => {
     const checkOldData = async () => {
         if(sessionStorage.getItem("checked_archive")) return;
@@ -45,18 +48,17 @@ export default function AdminPanel({ onLogout }) {
     checkOldData();
   }, []);
 
-  // ... (Estados de productos/usuarios idénticos a antes)
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const initialFormState = { id: null, name: "", price: "", stock: "", mainCategory: "Pizzas", station: "cocina", isActive: true, isClassic: false, isCombo: false, comboHasDrink: true, comboHasSide: true };
+  const initialFormState = { id: null, name: "", price: "", stock: "", mainCategory: "Pizzas", station: ROLES.KITCHEN, isActive: true, isClassic: false, isCombo: false, comboHasDrink: true, comboHasSide: true };
   const [formData, setFormData] = useState(initialFormState);
   const [users, setUsers] = useState([]);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "recepcion" });
+  const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: ROLES.RECEPTION });
   const [ingredients, setIngredients] = useState([]);
   const [drinks, setDrinks] = useState([]);
-  const [sides, setSides] = useState([]);
+  const [sides, setSides] = useState([]); // Cambiado para asegurar que sides se inicialice
   const [prices, setPrices] = useState({ extraIngredient: 0, sizeDifference: 0 });
 
   useEffect(() => {
@@ -105,9 +107,23 @@ export default function AdminPanel({ onLogout }) {
       } catch (error) { toast.error("Error creando usuario"); }
   };
 
+  // MEJORA: Validación al borrar usuarios
   const handleDeleteUser = async (user) => {
-      if (user.role === 'admin') return toast.error("No puedes borrar admins");
-      if(window.confirm("¿Borrar?")) { try { await deleteDoc(doc(db, "users", user.id)); fetchUsers(); } catch(e){} }
+      // Evitamos que se pueda borrar CUALQUIER administrador para prevenir quedarse sin acceso
+      // Opcional: Podrías permitir borrar otros admins si hay más de uno, pero esto es más seguro.
+      if (user.role === ROLES.ADMIN) {
+        return toast.error("Por seguridad, no se pueden eliminar administradores desde aquí.");
+      }
+      
+      if(window.confirm(`¿Estás seguro de eliminar al usuario ${user.name}? Esta acción no se puede deshacer.`)) { 
+          try { 
+              await deleteDoc(doc(db, "users", user.id)); 
+              fetchUsers(); 
+              toast.success("Usuario eliminado");
+          } catch(e){
+              toast.error("Error al eliminar");
+          } 
+      }
   };
 
   const handleSaveGlobalConfig = async () => {
@@ -147,7 +163,8 @@ export default function AdminPanel({ onLogout }) {
                                     <td className="p-3">{p.name}</td><td className="p-3">${p.price}</td>
                                     <td className="p-3 flex gap-2">
                                         <button onClick={() => handleOpenForm(p)} className="text-blue-600"><Edit size={16}/></button>
-                                        <button onClick={() => handleDeleteProduct(p.id)} className="text-red-600"><Trash2 size={16}/></button>
+                                        {/* TODO: Implementar borrado lógico o validación extra */}
+                                        <button onClick={() => { if(window.confirm("¿Borrar?")) { deleteDoc(doc(db, "menuItems", p.id)).then(fetchProducts) }}} className="text-red-600"><Trash2 size={16}/></button>
                                     </td>
                                 </tr>
                             ))}
@@ -170,13 +187,27 @@ export default function AdminPanel({ onLogout }) {
         {activeTab === 'users' && (
             <div className="space-y-4">
                 <button onClick={() => setIsCreatingUser(true)} className="bg-blue-600 text-white px-4 py-2 rounded font-bold flex gap-2"><Plus/> Usuario</button>
-                {users.map(u => <div key={u.id} className="bg-white p-3 rounded shadow flex justify-between"><span>{u.name} ({u.role})</span><button onClick={()=>handleDeleteUser(u)} className="text-red-600"><Trash2 size={16}/></button></div>)}
+                {users.map(u => (
+                    <div key={u.id} className="bg-white p-3 rounded shadow flex justify-between items-center">
+                        <span>{u.name} ({u.role})</span>
+                        {/* Solo mostramos botón borrar si NO es admin */}
+                        {u.role !== ROLES.ADMIN && (
+                             <button onClick={()=>handleDeleteUser(u)} className="text-red-600 hover:bg-red-50 p-1 rounded"><Trash2 size={16}/></button>
+                        )}
+                        {u.role === ROLES.ADMIN && <span className="text-xs text-slate-400 italic">Protegido</span>}
+                    </div>
+                ))}
                 {isCreatingUser && (
                     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                         <form onSubmit={handleCreateUser} className="bg-white p-6 rounded w-80 space-y-3">
                             <input className="border p-2 w-full" placeholder="Nombre" onChange={e=>setNewUser({...newUser, name:e.target.value})}/>
                             <input className="border p-2 w-full" placeholder="Email" onChange={e=>setNewUser({...newUser, email:e.target.value})}/>
                             <input className="border p-2 w-full" type="password" placeholder="Pass" onChange={e=>setNewUser({...newUser, password:e.target.value})}/>
+                            <select className="border p-2 w-full rounded" value={newUser.role} onChange={e=>setNewUser({...newUser, role:e.target.value})}>
+                                <option value={ROLES.RECEPTION}>Recepción</option>
+                                <option value={ROLES.KITCHEN}>Cocina</option>
+                                <option value={ROLES.ADMIN}>Admin</option>
+                            </select>
                              <div className="flex justify-end gap-2"><button type="button" onClick={()=>setIsCreatingUser(false)} className="bg-gray-200 px-3 py-1 rounded">Cancelar</button><button type="submit" className="bg-blue-600 text-white px-3 py-1 rounded">Crear</button></div>
                         </form>
                     </div>
@@ -190,6 +221,7 @@ export default function AdminPanel({ onLogout }) {
                 <div className="col-span-2 space-y-4">
                     <ListEditor title="Ingredientes" items={ingredients} setItems={setIngredients} />
                     <ListEditor title="Bebidas" items={drinks} setItems={setDrinks} />
+                    <ListEditor title="Complementos" items={sides} setItems={setSides} />
                 </div>
             </div>
         )}
