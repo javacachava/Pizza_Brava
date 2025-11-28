@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { 
   LogOut, Save, Plus, Trash2, Settings, Pizza, Users, 
-  BarChart2, Edit, Check, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, ShieldAlert, Key, Shield 
+  BarChart2, Edit, X as XIcon, ToggleLeft, ToggleRight, UserX, UserCheck, Shield, Key
 } from "lucide-react";
 import { 
   doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc 
@@ -13,6 +13,8 @@ import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
 import { toast } from "react-hot-toast";
 
+// Configuración para la "App Secundaria" (Creación de usuarios)
+// Esto permite crear usuarios sin desloguear al admin actual
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -119,7 +121,8 @@ export default function AdminPanel({ onLogout }) {
     if (formData.price === "" || formData.price === null) return toast.error("El precio es obligatorio");
     
     const priceVal = parseFloat(formData.price);
-    if (isNaN(priceVal) || priceVal < 0) return toast.error("Precio inválido");
+    // ✅ MEJORA: Validación para impedir precio 0 o negativo
+    if (isNaN(priceVal) || priceVal <= 0) return toast.error("El precio debe ser mayor a 0");
 
     const productData = {
       name: formData.name.trim(),
@@ -151,7 +154,7 @@ export default function AdminPanel({ onLogout }) {
       fetchProducts();
     } catch (e) { 
         console.error(e);
-        toast.error("Error al guardar en base de datos", { id: toastId });
+        toast.error("Error al guardar: " + e.message, { id: toastId });
     }
   };
 
@@ -168,7 +171,11 @@ export default function AdminPanel({ onLogout }) {
       await deleteDoc(doc(db, "menuItems", id));
       setProducts(products.filter(p => p.id !== id));
       toast.success("Producto eliminado");
-    } catch (e) { toast.error("Error al eliminar"); }
+    } catch (e) { 
+      // ✅ MEJORA: Logging del error real para depuración
+      console.error("Error borrando producto:", e);
+      toast.error("Error al eliminar: " + e.message); 
+    }
   };
 
   // --- LOGICA USUARIOS ---
@@ -191,6 +198,8 @@ export default function AdminPanel({ onLogout }) {
     if (newUser.password.length < 6) return toast.error("Contraseña muy corta (min 6)");
 
     const toastId = toast.loading("Registrando usuario...");
+    
+    // Inicializamos una app secundaria para no cerrar la sesión del admin
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -219,6 +228,8 @@ export default function AdminPanel({ onLogout }) {
         let msg = "Error al crear usuario";
         if (error.code === 'auth/email-already-in-use') msg = "El correo ya existe";
         toast.error(msg, { id: toastId });
+        // Limpiar la app secundaria en caso de error
+        try { deleteApp(secondaryApp); } catch(e){}
     }
   };
 
