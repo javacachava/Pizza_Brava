@@ -2,59 +2,61 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- 1. TU SUPER-PODER (Hardcoded Admin) ---
-    // Aquí pegas tu UID real. Esto es infalible.
-    function isSuperAdmin() {
-      return request.auth.uid == "oK9b8ARXVpZ3gLAqU4swtW6JEl22"; 
-    }
-
-    // --- 2. FUNCIONES DE LECTURA DIRECTA ---
-    // Esta función va a LEER el documento del usuario en la base de datos
-    // para ver si está activo y qué rol tiene.
+    // --- FUNCIONES DE ACCESO DIRECTO ---
+    // En lugar de buscar tokens, LEEMOS el documento del usuario en tiempo real.
+    
     function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function isActive() {
-      return request.auth != null && (isSuperAdmin() || getUserData().active == true);
+    function isUserActive() {
+      // Verifica si existe y si el campo 'active' es true
+      let user = getUserData();
+      return user != null && user.active == true;
     }
 
-    function isAdmin() {
-      return isSuperAdmin() || (isActive() && getUserData().role == 'admin');
+    function hasRole(role) {
+      // Verifica si el usuario tiene el rol específico guardado en su documento
+      return isUserActive() && getUserData().role == role;
     }
     
     function isStaff() {
-      return isActive() && (getUserData().role in ['recepcion', 'cocina', 'admin']);
+      // Cualquiera activo con rol válido es Staff
+      return isUserActive() && (getUserData().role in ['recepcion', 'cocina', 'admin']);
     }
 
-    // --- REGLAS DE COLECCIONES ---
+    // --- REGLAS SIMPLIFICADAS ---
 
+    // 1. Usuarios: El admin controla todo. El usuario solo se lee a sí mismo.
     match /users/{userId} {
-      // El admin puede ver todo. El usuario solo su propio perfil.
-      allow read: if isSuperAdmin() || request.auth.uid == userId;
-      // Solo el admin puede crear/editar/borrar usuarios
-      allow write: if isSuperAdmin(); 
+      allow read: if (request.auth != null && request.auth.uid == userId) || hasRole('admin');
+      allow write: if hasRole('admin'); 
     }
 
+    // 2. Contadores (Para generar IDs de órdenes)
     match /counters/{counterId} {
       allow read, write: if isStaff();
     }
 
+    // 3. Órdenes (Cualquier empleado puede trabajar con órdenes)
     match /orders/{orderId} {
       allow read, write: if isStaff();
+      
       match /items/{itemId} {
         allow read, write: if isStaff();
       }
     }
 
+    // 4. Menú (Todos leen, solo Admin edita)
     match /menuItems/{itemId} {
       allow read: if isStaff(); 
-      allow write: if isAdmin();
+      allow write: if hasRole('admin');
     }
     
+    // 5. Configuración (Igual que el menú)
     match /configuration/{configId} {
       allow read: if isStaff();
-      allow write: if isAdmin();
+      allow write: if hasRole('admin');
     }
   }
 }
