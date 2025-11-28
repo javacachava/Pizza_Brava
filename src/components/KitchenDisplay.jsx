@@ -2,22 +2,20 @@ import React, { useEffect, useState, useRef } from "react";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { useOrders } from "../hooks/useOrders";
-import { Clock, CheckCircle, LogOut, ChefHat, AlertTriangle, Bell, PackageCheck, Play } from "lucide-react";
+import { CheckCircle, LogOut, ChefHat, Bell, PackageCheck, Play } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { ROLES, STATUS } from "../constants/types"; // Importamos constantes
-
-const NOTIFICATION_SOUND = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEIyAAAAjqZAANQAACqv/9D//8z///4n//5w/wH+B/8//4HgAAAAAiAAAD//OEJAAABuyqUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABqyiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAABwSiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA//OEJAAAB2CiUAAAAA4AAAA0AAAAPAAAA8AAAA4////+H////gAAAAA";
+import { STATUS } from "../constants/types";
+import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
   const [tick, setTick] = useState(0); 
-  const [audioInitialized, setAudioInitialized] = useState(false); // Estado para controlar el bloqueo de audio
+  const [audioInitialized, setAudioInitialized] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   
   const { updateOrderStatus } = useOrders();
-  const audioRef = useRef(new Audio(NOTIFICATION_SOUND));
+  const audioRef = useRef(new Audio(NOTIFICATION_SOUND_BASE64));
 
-  // Función para desbloquear el contexto de audio del navegador
   const initAudio = () => {
     audioRef.current.play().then(() => {
       audioRef.current.pause();
@@ -26,13 +24,11 @@ export default function KitchenDisplay({ onLogout }) {
       setSoundEnabled(true);
     }).catch(e => {
       console.error("Error inicializando audio:", e);
-      // Aún si falla, permitimos entrar a la app
       setAudioInitialized(true);
     });
   };
 
   useEffect(() => {
-    // Usamos las constantes para la query
     const q = query(
       collection(db, "orders"),
       where("status", "in", [STATUS.NEW, STATUS.PROCESS, STATUS.READY]),
@@ -45,12 +41,11 @@ export default function KitchenDisplay({ onLogout }) {
         ...doc.data()
       }));
       
-      // Detectar nuevas órdenes para sonar
       snapshot.docChanges().forEach((change) => {
         if (change.type === "added" && change.doc.data().status === STATUS.NEW) {
             if (soundEnabled) {
                 audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(e => console.log("Audio bloqueado por navegador"));
+                audioRef.current.play().catch(e => console.log("Audio bloqueado"));
             } else {
                 toast("¡Nueva Orden!", { icon: '🔔' });
             }
@@ -82,7 +77,6 @@ export default function KitchenDisplay({ onLogout }) {
     return "border-l-8 border-blue-500 bg-white"; 
   };
 
-  // 1. Pantalla de Bloqueo "Iniciar Turno" (Solución al Autoplay)
   if (!audioInitialized) {
     return (
       <div className="h-screen bg-slate-900 flex flex-col items-center justify-center text-white gap-6 p-4">

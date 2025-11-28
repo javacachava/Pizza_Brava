@@ -1,7 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+
+const CART_STORAGE_KEY = 'pizza_brava_cart';
 
 export function useCart() {
-  const [cart, setCart] = useState([]);
+  // Inicializar estado leyendo de LocalStorage
+  const [cart, setCart] = useState(() => {
+    try {
+      const stored = localStorage.getItem(CART_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error("Error cargando carrito:", e);
+      return [];
+    }
+  });
+
+  // Guardar en LocalStorage cada vez que el carrito cambia
+  useEffect(() => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+  }, [cart]);
 
   const addToCart = (item) => {
     setCart(prev => {
@@ -45,10 +61,12 @@ export function useCart() {
     });
   };
 
-  const clearCart = () => setCart([]);
+  // Limpiar carrito y storage
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem(CART_STORAGE_KEY);
+  };
 
-  // --- FIX: MATEMÁTICAS DE PUNTO FLOTANTE ---
-  // Redondeamos siempre a 2 decimales para evitar errores de precisión tipo 15.000000001
   const cartTotal = useMemo(() => {
     const rawTotal = cart.reduce((total, item) => total + (item.price * item.qty), 0);
     return Number(rawTotal.toFixed(2));

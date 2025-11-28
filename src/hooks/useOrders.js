@@ -9,11 +9,13 @@ import {
   getDocs,
   query,
   where,
-  limit
+  limit,
+  increment,
+  setDoc
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { toast } from "react-hot-toast";
-import { ROLES, STATUS } from "../constants/types"; // Importamos constantes
+import { ROLES, STATUS } from "../constants/types";
 
 export function useOrders() {
   const [loading, setLoading] = useState(false);
@@ -73,9 +75,10 @@ export function useOrders() {
         syncStatus: isOffline ? "pending" : "synced"
       };
 
+      // 1. Guardar la Orden Principal
       batch.set(newOrderRef, orderPayload);
 
-      // Subcolección items (opcional)
+      // 2. Subcolección items (opcional, buena para auditoría)
       cartItems.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
@@ -85,6 +88,28 @@ export function useOrders() {
           price: item.price
         });
       });
+
+      // 3. ACTUALIZAR ESTADÍSTICAS DIARIAS (Agregación)
+      // Solo si tenemos internet, para evitar desincronización de contadores en local
+      if (!isOffline) {
+        const todayStr = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+        const statsRef = doc(db, "daily_stats", todayStr);
+        
+        // Preparamos los incrementos de categoría
+        const categoryIncrements = {};
+        itemsSnapshot.forEach(item => {
+            const catField = `categoryBreakdown.${item.mainCategory}`;
+            categoryIncrements[catField] = increment(item.total);
+        });
+
+        // Escribimos todo en una sola operación atómica
+        batch.set(statsRef, {
+            date: todayStr, // Guardamos string para ordenamiento simple
+            totalSales: increment(orderPayload.total),
+            totalOrders: increment(1),
+            ...categoryIncrements
+        }, { merge: true });
+      }
 
       if (isOffline) {
           batch.commit();
@@ -113,7 +138,6 @@ export function useOrders() {
     }
   };
 
-  // Mueve órdenes viejas a 'archived_orders'
   const archiveOldOrders = async () => {
     setLoading(true);
     try {

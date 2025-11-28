@@ -14,39 +14,37 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"
 
 export default function AnalyticsPanel({ enablePrint = false }) {
   const [dateRange, setDateRange] = useState("week");
-  const [orders, setOrders] = useState([]);
+  const [statsData, setStatsData] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchSalesData = async () => {
+    const fetchStats = async () => {
       setLoading(true);
       try {
         const now = dayjs();
-        let start, end;
+        let startStr, endStr;
 
+        // Calculamos strings YYYY-MM-DD para consultar la colección daily_stats
         if (dateRange === "week") {
-          start = now.startOf("week").toDate();
-          end = now.endOf("week").toDate();
+          startStr = now.startOf("week").format("YYYY-MM-DD");
+          endStr = now.endOf("week").format("YYYY-MM-DD");
         } else {
-          start = now.startOf("month").toDate();
-          end = now.endOf("month").toDate();
+          startStr = now.startOf("month").format("YYYY-MM-DD");
+          endStr = now.endOf("month").format("YYYY-MM-DD");
         }
 
+        // Consultamos SOLO los documentos de resumen (7 para semana, ~30 para mes)
+        // Esto es muchísimo más barato que leer todas las órdenes individualmente
         const q = query(
-          collection(db, "orders"),
-          where("createdAt", ">=", start),
-          where("createdAt", "<=", end),
-          orderBy("createdAt", "asc")
+          collection(db, "daily_stats"),
+          where("date", ">=", startStr),
+          where("date", "<=", endStr),
+          orderBy("date", "asc")
         );
 
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() 
-        }));
-        
-        setOrders(data);
+        const data = snapshot.docs.map(doc => doc.data());
+        setStatsData(data);
       } catch (error) {
         console.error("Error analítica:", error);
       } finally {
@@ -54,42 +52,41 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       }
     };
 
-    fetchSalesData();
+    fetchStats();
   }, [dateRange]);
 
-  const stats = useMemo(() => {
-    const totalSales = orders.reduce((acc, o) => acc + (o.total || 0), 0);
-    const totalOrders = orders.length;
-    const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
+  const summary = useMemo(() => {
+    let totalSales = 0;
+    let totalOrders = 0;
+    const categoryTotals = {};
 
-    const salesByDay = {};
-    const salesByCategory = {};
-    const productRanking = {};
-
-    orders.forEach(order => {
-      const dayKey = dayjs(order.createdAt).format("DD/MM");
-      salesByDay[dayKey] = (salesByDay[dayKey] || 0) + order.total;
-
-      if (order.itemsSnapshot) {
-        order.itemsSnapshot.forEach(item => {
-          const cat = item.mainCategory || "Otros";
-          salesByCategory[cat] = (salesByCategory[cat] || 0) + (item.total || 0);
-
-          if (!productRanking[item.name]) {
-            productRanking[item.name] = { name: item.name, qty: 0, total: 0 };
-          }
-          productRanking[item.name].qty += item.qty;
-          productRanking[item.name].total += item.total;
+    statsData.forEach(day => {
+      totalSales += day.totalSales || 0;
+      totalOrders += day.totalOrders || 0;
+      
+      // Agregar categorías
+      if (day.categoryBreakdown) {
+        Object.entries(day.categoryBreakdown).forEach(([cat, amount]) => {
+          categoryTotals[cat] = (categoryTotals[cat] || 0) + amount;
         });
       }
     });
 
-    const chartDataDay = Object.keys(salesByDay).map(key => ({ name: key, Ventas: salesByDay[key] }));
-    const chartDataCat = Object.keys(salesByCategory).map(key => ({ name: key, value: salesByCategory[key] }));
-    const topProducts = Object.values(productRanking).sort((a, b) => b.qty - a.qty).slice(0, 10);
+    const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    return { totalSales, totalOrders, avgTicket, chartDataDay, chartDataCat, topProducts };
-  }, [orders]);
+    // Formatear datos para gráficos
+    const chartDataDay = statsData.map(day => ({
+        name: dayjs(day.date).format("DD/MM"),
+        Ventas: day.totalSales
+    }));
+
+    const chartDataCat = Object.keys(categoryTotals).map(key => ({
+        name: key,
+        value: categoryTotals[key]
+    }));
+
+    return { totalSales, totalOrders, avgTicket, chartDataDay, chartDataCat };
+  }, [statsData]);
 
   const generatePDF = () => {
     if (!enablePrint) return; 
@@ -106,20 +103,13 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     doc.autoTable({
       startY: 45,
       head: [['Ventas Totales', 'Órdenes', 'Ticket Promedio']],
-      body: [[`$${stats.totalSales.toFixed(2)}`, stats.totalOrders, `$${stats.avgTicket.toFixed(2)}`]],
-    });
-
-    doc.text("Top Productos Vendidos", 14, doc.lastAutoTable.finalY + 15);
-    doc.autoTable({
-      startY: doc.lastAutoTable.finalY + 20,
-      head: [['Producto', 'Cantidad', 'Total Generado']],
-      body: stats.topProducts.map(p => [p.name, p.qty, `$${p.total.toFixed(2)}`]),
+      body: [[`$${summary.totalSales.toFixed(2)}`, summary.totalOrders, `$${summary.avgTicket.toFixed(2)}`]],
     });
 
     doc.save(`reporte_ventas_${dayjs().format("YYYY-MM-DD")}.pdf`);
   };
 
-  if (loading) return <div className="p-8 text-center">Analizando datos...</div>;
+  if (loading) return <div className="p-8 text-center">Cargando datos agregados...</div>;
 
   return (
     <div className="space-y-6">
@@ -143,15 +133,15 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-green-100">
           <p className="text-slate-500 text-sm font-medium">Ventas Totales</p>
-          <h3 className="text-2xl font-bold text-slate-800">${stats.totalSales.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-slate-800">${summary.totalSales.toFixed(2)}</h3>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100">
           <p className="text-slate-500 text-sm font-medium">Total Órdenes</p>
-          <h3 className="text-2xl font-bold text-slate-800">{stats.totalOrders}</h3>
+          <h3 className="text-2xl font-bold text-slate-800">{summary.totalOrders}</h3>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border border-purple-100">
           <p className="text-slate-500 text-sm font-medium">Ticket Promedio</p>
-          <h3 className="text-2xl font-bold text-slate-800">${stats.avgTicket.toFixed(2)}</h3>
+          <h3 className="text-2xl font-bold text-slate-800">${summary.avgTicket.toFixed(2)}</h3>
         </div>
       </div>
 
@@ -159,9 +149,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <h3 className="text-lg font-bold text-slate-700 mb-4">Tendencia de Ventas</h3>
           <div className="h-64 w-full">
-            {stats.chartDataDay.length > 0 ? (
+            {summary.chartDataDay.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartDataDay}>
+                <BarChart data={summary.chartDataDay}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} />
                   <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val}`} />
@@ -176,11 +166,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
           <h3 className="text-lg font-bold text-slate-700 mb-4">Por Categoría</h3>
           <div className="h-64 w-full">
-            {stats.chartDataCat.length > 0 ? (
+            {summary.chartDataCat.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={stats.chartDataCat} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                    {stats.chartDataCat.map((entry, index) => (
+                  <Pie data={summary.chartDataCat} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {summary.chartDataCat.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
