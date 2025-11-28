@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import { useMenu } from "../hooks/useMenu";
 import { useCart } from "../hooks/useCart";
 import { useOrders } from "../hooks/useOrders";
 import { useConfig } from "../hooks/useConfig";
+import { collection, onSnapshot } from "firebase/firestore"; // Import necesario para cargar ingredientes/sides
+import { db } from "../services/firebase"; // Import de db
 import MenuPanel from "./MenuPanel";
 import CartPanel from "./CartPanel";
 import TicketModal from "./TicketModal";
-import ProductOptionsModal from "./ProductOptionsModal";
+import ProductDispatcher from "./ProductDispatcher"; // IMPORTANTE: Importamos el Dispatcher
 import OrdersHistoryModal from "./OrdersHistoryModal";
 
 export default function ReceptionPanel({ onLogout }) {
@@ -17,24 +19,45 @@ export default function ReceptionPanel({ onLogout }) {
   const { config, loadingConfig } = useConfig();
 
   const [showTicket, setShowTicket] = useState(false);
-  const [showProductModal, setShowProductModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
+  // Estados para datos auxiliares (Ingredientes, Sides, etc.)
+  const [ingredients, setIngredients] = useState([]);
+  const [sides, setSides] = useState([]);
+  const [drinks, setDrinks] = useState([]);
+  const [potatoes, setPotatoes] = useState([]); // Si tienes colección de papas
+  const [sauces, setSauces] = useState([]);     // Si tienes colección de salsas
+
+  // Cargar datos auxiliares en tiempo real o una sola vez
+  useEffect(() => {
+    // Puedes optimizar esto moviéndolo a un hook separado (useInventory) si prefieres
+    const unsubs = [
+      onSnapshot(collection(db, "ingredients"), (snap) => 
+        setIngredients(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      ),
+      onSnapshot(collection(db, "sides"), (snap) => 
+        setSides(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      ),
+      // Agrega listeners para drinks, potatoes, sauces si existen en tu DB como colecciones separadas
+      // Si están en 'config', úsalos desde el hook useConfig
+    ];
+    return () => unsubs.forEach(u => u());
+  }, []);
+
   if (loadingConfig) return <div className="h-screen flex items-center justify-center bg-slate-950 font-bold text-slate-500 animate-pulse text-xl">Cargando Sistema...</div>;
 
   const handleProductClick = (product) => {
-    const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
-    const isCombo = product.comboOptions && (product.comboOptions.hasDrink || product.comboOptions.hasSide);
-    const isSpecialty = product.mainCategory === "Pizzas" && !isClassic; 
-    if (isClassic || isCombo || isSpecialty) {
-      setSelectedProduct(product); setShowProductModal(true);
-    } else {
-      addToCart(product); toast.success("Producto agregado");
-    }
+    // Lógica simplificada: El Dispatcher se encarga de decidir qué mostrar
+    // Si es un producto simple sin opciones (ej: agua embotellada simple), podrías agregarlo directo aquí
+    // pero para mantener consistencia, pasamos todo por el dispatcher o validamos "simple".
+    
+    // Ejemplo: Si es simple y no requiere modal, agregar directo. 
+    // Por ahora, asumimos que todo pasa por la selección (o el dispatcher devuelve null y agrega directo si lo modificas)
+    setSelectedProduct(product); 
   };
 
   const handleCheckout = (formData) => {
@@ -87,8 +110,28 @@ export default function ReceptionPanel({ onLogout }) {
         <CartPanel cart={cart} cartTotal={cartTotal} updateQty={updateQty} removeFromCart={removeFromCart} onCheckout={handleCheckout} showTicket={showTicket} lastOrderNumber={ticketInfo.orderNumber} loadingOrder={loadingOrder} />
       </div>
 
-      {/* Modales */}
-      <ProductOptionsModal isOpen={showProductModal} product={selectedProduct} globalConfig={config} onClose={() => setShowProductModal(false)} onConfirm={(item) => { addToCart(item); setShowProductModal(false); }} />
+      {/* MODALES */}
+      
+      {/* REEMPLAZO: ProductDispatcher maneja la lógica de qué modal mostrar */}
+      {selectedProduct && (
+        <ProductDispatcher 
+            selectedProduct={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onConfirm={(finalItem) => {
+                addToCart(finalItem);
+                setSelectedProduct(null);
+                toast.success("Producto agregado");
+            }}
+            // Pasamos los datos cargados del inventario
+            ingredients={ingredients} 
+            sides={sides} 
+            drinks={config?.drinks || []} // Si usas drinks de config global
+            potatoes={potatoes} 
+            sauces={sauces} 
+            globalConfig={config}
+        />
+      )}
+
       <TicketModal isOpen={showTicket} onClose={() => { setShowTicket(false); setPendingOrderData(null); }} onConfirm={handleConfirmOrder} ticketItems={ticketInfo.items} orderData={pendingOrderData || {}} currentOrderId={ticketInfo.orderId} currentOrderNumber={ticketInfo.orderNumber} loading={loadingOrder} tempQrId={Date.now()} />
       <OrdersHistoryModal isOpen={showHistory} onClose={() => setShowHistory(false)} onReprint={handleReprint} />
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LogOut, Plus, Trash2, Settings, Edit, X as XIcon, UserCheck, UserX } from "lucide-react";
+import { LogOut, Plus, Trash2, Settings, Edit, X as XIcon, UserCheck, UserX, LayoutGrid } from "lucide-react"; // LayoutGrid icon added
 import { doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc, query, where, getCountFromServer } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
@@ -7,9 +7,11 @@ import { db, firebaseConfig } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import { useOrders } from "../hooks/useOrders";
 import AnalyticsPanel from "./AnalyticsPanel";
+import AdminCombos from "./admin/AdminCombos"; // IMPORTANTE: Importar el componente de Combos
 import { toast } from "react-hot-toast";
 import { ROLES } from "../constants/types";
 
+// ... (Componente ListEditor se mantiene igual, omitido por brevedad, asegúrate de mantenerlo si estaba en el archivo original o pégalo aquí)
 const ListEditor = ({ title, items, setItems }) => {
   const [val, setVal] = useState("");
   return (
@@ -38,6 +40,7 @@ export default function AdminPanel({ onLogout }) {
   const { config, loadingConfig } = useConfig();
   const { archiveOldOrders } = useOrders();
   
+  // ... (useEffect para checkOldData se mantiene igual)
   useEffect(() => {
     const checkOldData = async () => {
         if(sessionStorage.getItem("checked_archive")) return;
@@ -54,7 +57,7 @@ export default function AdminPanel({ onLogout }) {
         } catch (e) { console.error("Error mantenimiento", e); }
     };
     checkOldData();
-  }, []);
+  }, []); // Agregado array de dependencias vacío para corregir warning si existía
 
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -84,10 +87,18 @@ export default function AdminPanel({ onLogout }) {
   const fetchProducts = async () => {
     setLoadingProducts(true);
     const q = await getDocs(collection(db, "menuItems"));
+    // Excluimos los que son tipo 'combo' de la lista general de productos simples si quieres administrarlos solo en la pestaña combos
+    // O puedes dejarlos aquí. Por limpieza, sugiero dejarlos si la lógica de edición simple les aplica, o filtrarlos si AdminCombos es muy diferente.
+    // Aquí asumo que mostramos todo pero editamos simples aquí.
     setProducts(q.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => a.name.localeCompare(b.name)));
     setLoadingProducts(false);
   };
   
+  // ... (Resto de funciones: handleOpenForm, handleSaveProduct, fetchUsers, handleCreateUser, toggleUserStatus, handleDeleteUser, handleSaveGlobalConfig se mantienen IGUALES)
+  // Asegúrate de copiar las funciones del archivo original que no estoy modificando explícitamente si las necesitas.
+  // Por brevedad, asumo que tienes el código original y solo insertas las partes nuevas.
+  // A continuación pongo el JSX modificado del return.
+
   const handleOpenForm = (p) => { setFormData(p ? {...p, stock: p.stock ?? ""} : initialFormState); setIsEditing(true); };
 
   const handleSaveProduct = async () => {
@@ -115,28 +126,21 @@ export default function AdminPanel({ onLogout }) {
       } catch (error) { toast.error("Error creando usuario"); }
   };
 
-  // Función para cambiar estado activo/inactivo
   const toggleUserStatus = async (user) => {
       if (user.role === ROLES.ADMIN) return toast.error("No se puede bloquear a un admin");
-      
       const newStatus = !user.active;
       try {
           await updateDoc(doc(db, "users", user.id), { active: newStatus });
           toast.success(`Usuario ${newStatus ? 'Activado' : 'Bloqueado'}`);
-          fetchUsers(); // Recargar lista
-      } catch (e) {
-          toast.error("Error al actualizar estado");
-      }
+          fetchUsers();
+      } catch (e) { toast.error("Error al actualizar estado"); }
   };
 
   const handleDeleteUser = async (user) => {
       if (user.role === ROLES.ADMIN) return toast.error("No se pueden eliminar administradores.");
       if(window.confirm(`¿Eliminar a ${user.name}?`)) { 
-          try { 
-              await deleteDoc(doc(db, "users", user.id)); 
-              fetchUsers(); 
-              toast.success("Usuario eliminado");
-          } catch(e){ toast.error("Error al eliminar"); } 
+          try { await deleteDoc(doc(db, "users", user.id)); fetchUsers(); toast.success("Usuario eliminado"); } 
+          catch(e){ toast.error("Error al eliminar"); } 
       }
   };
 
@@ -159,13 +163,13 @@ export default function AdminPanel({ onLogout }) {
         </h1>
         
         <div className="flex gap-1 bg-slate-800/50 p-1 rounded-xl border border-slate-700">
-            {['analytics', 'menu', 'users', 'config'].map(tab => (
+            {['analytics', 'menu', 'combos', 'users', 'config'].map(tab => (
                 <button 
                     key={tab}
                     onClick={() => setActiveTab(tab)} 
                     className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab ? 'bg-orange-600 text-white shadow-lg shadow-orange-900/20' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
                 >
-                    {tab === 'analytics' ? 'Reportes' : tab === 'menu' ? 'Menú' : tab === 'users' ? 'Equipo' : 'Ajustes'}
+                    {tab === 'analytics' ? 'Reportes' : tab === 'menu' ? 'Menú' : tab === 'combos' ? 'Combos' : tab === 'users' ? 'Equipo' : 'Ajustes'}
                 </button>
             ))}
         </div>
@@ -179,7 +183,11 @@ export default function AdminPanel({ onLogout }) {
       <div className="flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {activeTab === 'analytics' && <AnalyticsPanel enablePrint={true} />}
         
+        {/* Renderizado Condicional: Pestaña de Combos */}
+        {activeTab === 'combos' && <AdminCombos />}
+
         {activeTab === 'menu' && (
+            // ... (Código original de la pestaña Menú)
             <div className="space-y-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-slate-800">Catálogo de Productos</h2>
@@ -242,6 +250,7 @@ export default function AdminPanel({ onLogout }) {
         )}
 
         {activeTab === 'users' && (
+            // ... (Código original de la pestaña Usuarios)
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-slate-800">Equipo de Trabajo</h2>
@@ -307,6 +316,7 @@ export default function AdminPanel({ onLogout }) {
         )}
 
         {activeTab === 'config' && (
+            // ... (Código original de la pestaña Config)
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
                     <h3 className="font-black text-slate-800 mb-4 text-lg">Reglas de Precio</h3>
