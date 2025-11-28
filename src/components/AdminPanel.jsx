@@ -8,7 +8,7 @@ import {
 } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
-// ✅ IMPORTAMOS LA CONFIGURACIÓN CENTRALIZADA
+// ✅ Importamos config centralizada
 import { db, firebaseConfig } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import AnalyticsPanel from "./AnalyticsPanel";
@@ -18,7 +18,7 @@ const CATEGORY_OPTIONS = [
   "Pizzas", "Bebidas", "Hamburguesas", "Birrias", "Platos", "Entradas", "Complementos"
 ];
 
-// ✅ OPTIMIZACIÓN: Componente extraído fuera para evitar re-renderizados lentos
+// ✅ COMPONENTE EXTRAÍDO (Mejora de rendimiento: evita re-render innecesario)
 const ListEditor = ({ title, items, setItems }) => {
   const [val, setVal] = useState("");
   return (
@@ -45,7 +45,7 @@ export default function AdminPanel({ onLogout }) {
   const [activeTab, setActiveTab] = useState("analytics"); 
   const { config, loadingConfig } = useConfig();
   
-  // --- ESTADOS MENÚ ---
+  // --- ESTADOS ---
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -65,14 +65,11 @@ export default function AdminPanel({ onLogout }) {
   };
   
   const [formData, setFormData] = useState(initialFormState);
-
-  // --- ESTADOS USUARIOS ---
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: "recepcion" });
 
-  // --- ESTADOS CONFIG GLOBAL ---
   const [ingredients, setIngredients] = useState([]);
   const [drinks, setDrinks] = useState([]);
   const [sides, setSides] = useState([]);
@@ -132,7 +129,7 @@ export default function AdminPanel({ onLogout }) {
     if (!formData.name?.trim()) return toast.error("El nombre es obligatorio");
     
     const priceVal = parseFloat(formData.price);
-    // ✅ VALIDACIÓN CORREGIDA: Precio debe ser > 0
+    // ✅ VALIDACIÓN CORREGIDA: Precio > 0
     if (isNaN(priceVal) || priceVal <= 0) return toast.error("El precio debe ser mayor a $0.00");
 
     const productData = {
@@ -183,9 +180,8 @@ export default function AdminPanel({ onLogout }) {
       setProducts(products.filter(p => p.id !== id));
       toast.success("Producto eliminado");
     } catch (e) { 
-      // ✅ MEJORA: Log detallado para depuración
       console.error("Error al eliminar producto:", e);
-      toast.error("Error al eliminar. Revisa la consola."); 
+      toast.error("Error al eliminar. Revisa permisos."); 
     }
   };
 
@@ -209,7 +205,7 @@ export default function AdminPanel({ onLogout }) {
     if (newUser.password.length < 6) return toast.error("Contraseña muy corta (min 6)");
 
     const toastId = toast.loading("Registrando usuario...");
-    // ✅ Usamos la config importada
+    // ✅ Inicialización de App Secundaria usando la config importada
     const secondaryApp = initializeApp(firebaseConfig, "Secondary");
     const secondaryAuth = getAuth(secondaryApp);
 
@@ -309,7 +305,6 @@ export default function AdminPanel({ onLogout }) {
       </div>
 
       <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
-        
         {activeTab === 'analytics' && <AnalyticsPanel />}
 
         {activeTab === 'menu' && (

@@ -11,7 +11,8 @@ export const FALLBACK_CONFIG = {
   }
 };
 
-// Exportaciones para compatibilidad
+// Exportamos las listas individuales para mantener compatibilidad
+// con componentes antiguos que las busquen directamente
 export const INGREDIENTS_LIST = FALLBACK_CONFIG.ingredients;
 export const SIDES_LIST = FALLBACK_CONFIG.sides;
 export const DRINKS_LIST = FALLBACK_CONFIG.drinks;

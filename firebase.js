@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-
+// ✅ EXPORTAMOS la config para reutilizarla en AdminPanel (DRY Pattern)
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -15,6 +15,7 @@ export const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
+// Configuración de persistencia robusta para modo Offline
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
