@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LogOut, Plus, Trash2, Settings, Edit, X as XIcon } from "lucide-react";
+import { LogOut, Plus, Trash2, Settings, Edit, X as XIcon, UserCheck, UserX } from "lucide-react";
 import { doc, updateDoc, collection, addDoc, deleteDoc, getDocs, setDoc, query, where, getCountFromServer } from "firebase/firestore";
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
@@ -10,7 +10,6 @@ import AnalyticsPanel from "./AnalyticsPanel";
 import { toast } from "react-hot-toast";
 import { ROLES } from "../constants/types";
 
-// Componente Auxiliar de Lista (Estilizado)
 const ListEditor = ({ title, items, setItems }) => {
   const [val, setVal] = useState("");
   return (
@@ -67,7 +66,7 @@ export default function AdminPanel({ onLogout }) {
   const [newUser, setNewUser] = useState({ name: "", email: "", password: "", role: ROLES.RECEPTION });
   const [ingredients, setIngredients] = useState([]);
   const [drinks, setDrinks] = useState([]);
-  const [sides, setSides] = useState([]);
+  const [sides, setSides] = useState([]); 
   const [prices, setPrices] = useState({ extraIngredient: 0, sizeDifference: 0 });
 
   useEffect(() => {
@@ -102,7 +101,7 @@ export default function AdminPanel({ onLogout }) {
 
   const fetchUsers = async () => {
       const q = await getDocs(collection(db, "users"));
-      setUsers(q.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setUsers(q.docs.map(doc => ({ id: doc.id, active: true, ...doc.data() })));
   };
 
   const handleCreateUser = async (e) => {
@@ -116,10 +115,22 @@ export default function AdminPanel({ onLogout }) {
       } catch (error) { toast.error("Error creando usuario"); }
   };
 
-  const handleDeleteUser = async (user) => {
-      if (user.role === ROLES.ADMIN) {
-        return toast.error("No se pueden eliminar administradores.");
+  // Función para cambiar estado activo/inactivo
+  const toggleUserStatus = async (user) => {
+      if (user.role === ROLES.ADMIN) return toast.error("No se puede bloquear a un admin");
+      
+      const newStatus = !user.active;
+      try {
+          await updateDoc(doc(db, "users", user.id), { active: newStatus });
+          toast.success(`Usuario ${newStatus ? 'Activado' : 'Bloqueado'}`);
+          fetchUsers(); // Recargar lista
+      } catch (e) {
+          toast.error("Error al actualizar estado");
       }
+  };
+
+  const handleDeleteUser = async (user) => {
+      if (user.role === ROLES.ADMIN) return toast.error("No se pueden eliminar administradores.");
       if(window.confirm(`¿Eliminar a ${user.name}?`)) { 
           try { 
               await deleteDoc(doc(db, "users", user.id)); 
@@ -147,7 +158,6 @@ export default function AdminPanel({ onLogout }) {
             ADMIN PANEL
         </h1>
         
-        {/* Tabs */}
         <div className="flex gap-1 bg-slate-800/50 p-1 rounded-xl border border-slate-700">
             {['analytics', 'menu', 'users', 'config'].map(tab => (
                 <button 
@@ -220,7 +230,6 @@ export default function AdminPanel({ onLogout }) {
                                         </select>
                                     </div>
                                 </div>
-                                {/* Más campos según se necesite, manteniendo el estilo */}
                             </div>
                             <div className="flex justify-end gap-3 pt-2">
                                 <button onClick={()=>setIsEditing(false)} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
@@ -233,24 +242,44 @@ export default function AdminPanel({ onLogout }) {
         )}
 
         {activeTab === 'users' && (
-            <div className="max-w-2xl mx-auto space-y-6">
+            <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex justify-between items-center">
                     <h2 className="text-2xl font-bold text-slate-800">Equipo de Trabajo</h2>
                     <button onClick={() => setIsCreatingUser(true)} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg flex gap-2 items-center transition-all"><Plus size={18}/> Nuevo Usuario</button>
                 </div>
                 <div className="grid gap-4">
                     {users.map(u => (
-                        <div key={u.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex justify-between items-center group hover:border-orange-200 transition-colors">
-                            <div>
-                                <p className="font-bold text-slate-800 text-lg">{u.name}</p>
-                                <p className="text-sm text-slate-500 flex items-center gap-2">
-                                    <span className={`w-2 h-2 rounded-full ${u.active ? 'bg-green-500' : 'bg-red-500'}`}></span> 
-                                    {u.email} • <span className="uppercase font-bold text-xs bg-slate-100 px-2 py-0.5 rounded">{u.role}</span>
-                                </p>
+                        <div key={u.id} className={`bg-white p-5 rounded-2xl shadow-sm border transition-all flex justify-between items-center group ${u.active ? 'border-slate-200 hover:border-orange-200' : 'border-red-100 bg-red-50/30 opacity-80'}`}>
+                            <div className="flex items-center gap-4">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${u.active ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                                    {u.active ? <UserCheck size={20}/> : <UserX size={20}/>}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-slate-800 text-lg">{u.name}</p>
+                                    <p className="text-sm text-slate-500 flex items-center gap-2">
+                                        {u.email} • <span className="uppercase font-bold text-xs bg-slate-100 px-2 py-0.5 rounded">{u.role}</span>
+                                    </p>
+                                </div>
                             </div>
-                            {u.role !== ROLES.ADMIN && (
-                                 <button onClick={()=>handleDeleteUser(u)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-all"><Trash2 size={20}/></button>
-                            )}
+                            
+                            <div className="flex gap-2">
+                                {u.role !== ROLES.ADMIN && (
+                                    <>
+                                        <button 
+                                            onClick={() => toggleUserStatus(u)}
+                                            className={`p-2.5 rounded-xl transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wider ${
+                                                u.active 
+                                                ? 'text-orange-600 bg-orange-50 hover:bg-orange-100' 
+                                                : 'text-green-600 bg-green-50 hover:bg-green-100'
+                                            }`}
+                                        >
+                                            {u.active ? 'Bloquear' : 'Activar'}
+                                        </button>
+                                        <button onClick={()=>handleDeleteUser(u)} className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-all"><Trash2 size={20}/></button>
+                                    </>
+                                )}
+                                {u.role === ROLES.ADMIN && <span className="text-xs text-slate-300 font-bold italic self-center px-4">Protegido</span>}
+                            </div>
                         </div>
                     ))}
                 </div>

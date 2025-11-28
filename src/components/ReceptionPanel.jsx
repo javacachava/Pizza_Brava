@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Toaster, toast } from "react-hot-toast";
-import { LogOut, History } from "lucide-react";
 import { useMenu } from "../hooks/useMenu";
 import { useCart } from "../hooks/useCart";
 import { useOrders } from "../hooks/useOrders";
@@ -72,27 +71,16 @@ export default function ReceptionPanel({ onLogout }) {
 
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden relative">
-      {/* Botones flotantes superiores */}
-      <div className="absolute top-5 right-6 z-50 flex gap-3">
-        <button 
-            onClick={() => setShowHistory(true)} 
-            className="bg-white/90 backdrop-blur text-slate-700 p-3 rounded-full shadow-lg hover:bg-white hover:scale-105 transition-all border border-slate-200 group" 
-            title="Historial"
-        >
-            <History size={20} className="group-hover:text-blue-600 transition-colors" />
-        </button>
-        <button 
-            onClick={onLogout} 
-            className="bg-red-500/90 backdrop-blur text-white p-3 rounded-full shadow-lg hover:bg-red-600 hover:scale-105 transition-all group" 
-            title="Cerrar Sesión"
-        >
-            <LogOut size={20} />
-        </button>
-      </div>
-
+      
       {/* Panel Izquierdo: Menú */}
       <div className="flex-1 min-h-0 h-full">
-        <MenuPanel menuItems={menuItems} onProductClick={handleProductClick} />
+        {/* Pasamos onLogout y onHistory al MenuPanel para que se rendericen en el header */}
+        <MenuPanel 
+            menuItems={menuItems} 
+            onProductClick={handleProductClick} 
+            onLogout={onLogout}
+            onHistory={() => setShowHistory(true)}
+        />
       </div>
 
       {/* Panel Derecho: Carrito */}

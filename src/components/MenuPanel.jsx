@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from "react";
-import { Search, UtensilsCrossed, Flame } from "lucide-react";
+import { Search, UtensilsCrossed, Flame, LogOut, History } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
-export default function MenuPanel({ menuItems, onProductClick }) {
+export default function MenuPanel({ menuItems, onProductClick, onLogout, onHistory }) {
   const [activeCategory, setActiveCategory] = useState("Pizzas");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -21,23 +21,48 @@ export default function MenuPanel({ menuItems, onProductClick }) {
 
   return (
     <div className="flex-1 flex flex-col h-full bg-slate-50">
-      {/* Header y Buscador */}
-      <div className="bg-white px-6 py-5 shadow-sm flex justify-between items-center shrink-0 border-b border-slate-200 z-10">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
-            <Flame className="text-orange-600 fill-orange-600" /> 
+      {/* Header Completo: Título, Buscador y Botones de Acción */}
+      <div className="bg-white px-6 py-4 shadow-sm flex justify-between items-center shrink-0 border-b border-slate-200 z-10 gap-4">
+        
+        {/* Título */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="bg-orange-100 p-2 rounded-lg">
+            <Flame className="text-orange-600 fill-orange-600" size={24} /> 
+          </div>
+          <h1 className="text-xl font-black tracking-tight text-slate-900 hidden sm:block">
             Pizza Brava
           </h1>
         </div>
-        <div className="relative group">
+
+        {/* Barra de Búsqueda Central */}
+        <div className="relative group flex-1 max-w-md mx-auto">
           <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={20} />
           <input
             type="text"
             placeholder="Buscar producto..."
-            className="pl-10 pr-4 py-2.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-orange-500 focus:bg-white focus:border-transparent outline-none w-64 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-orange-500 focus:bg-white focus:border-transparent outline-none transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+        </div>
+
+        {/* Botones de Acción (Movidos aquí para no tapar el carrito) */}
+        <div className="flex items-center gap-2 shrink-0">
+            <button 
+                onClick={onHistory}
+                className="p-2.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 rounded-full transition-all border border-transparent hover:border-blue-100"
+                title="Ver Historial"
+            >
+                <History size={22} />
+            </button>
+            <div className="h-8 w-px bg-slate-200 mx-1"></div>
+            <button 
+                onClick={onLogout}
+                className="p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-all border border-transparent hover:border-red-100"
+                title="Cerrar Sesión"
+            >
+                <LogOut size={22} />
+            </button>
         </div>
       </div>
 
@@ -93,7 +118,6 @@ export default function MenuPanel({ menuItems, onProductClick }) {
                     </h3>
                     
                     <p className="text-xs text-slate-400 line-clamp-2 mb-4 flex-1">
-                        {/* Descripción simulada si no existe en DB */}
                         {product.description || "Deliciosa preparación especial de la casa."}
                     </p>
 
