@@ -24,7 +24,7 @@ export default function ReceptionPanel({ onLogout }) {
   const [pendingOrderData, setPendingOrderData] = useState(null);
   const [ticketInfo, setTicketInfo] = useState({ orderId: null, orderNumber: null, items: [] });
 
-  if (loadingConfig) return <div className="h-screen flex items-center justify-center bg-slate-50 font-bold text-slate-400 animate-pulse text-xl">Cargando Sistema...</div>;
+  if (loadingConfig) return <div className="h-screen flex items-center justify-center bg-slate-950 font-bold text-slate-500 animate-pulse text-xl">Cargando Sistema...</div>;
 
   const handleProductClick = (product) => {
     const isClassic = product.pizzaType === "Clasica" || product.name.toLowerCase().includes("clásica");
@@ -70,11 +70,10 @@ export default function ReceptionPanel({ onLogout }) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden relative">
+    <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-950 font-sans text-slate-200 overflow-hidden relative selection:bg-orange-500 selection:text-white">
       
       {/* Panel Izquierdo: Menú */}
       <div className="flex-1 min-h-0 h-full">
-        {/* Pasamos onLogout y onHistory al MenuPanel para que se rendericen en el header */}
         <MenuPanel 
             menuItems={menuItems} 
             onProductClick={handleProductClick} 
@@ -84,7 +83,7 @@ export default function ReceptionPanel({ onLogout }) {
       </div>
 
       {/* Panel Derecho: Carrito */}
-      <div className="w-full md:w-[400px] md:border-l md:border-slate-200 shadow-2xl z-10 bg-white h-full">
+      <div className="w-full md:w-[400px] border-l border-slate-800 shadow-2xl z-10 bg-slate-900 h-full">
         <CartPanel cart={cart} cartTotal={cartTotal} updateQty={updateQty} removeFromCart={removeFromCart} onCheckout={handleCheckout} showTicket={showTicket} lastOrderNumber={ticketInfo.orderNumber} loadingOrder={loadingOrder} />
       </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Search, UtensilsCrossed, Flame, LogOut, History } from "lucide-react";
+import { Search, UtensilsCrossed, Flame, LogOut, History, ChevronRight } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
 export default function MenuPanel({ menuItems, onProductClick, onLogout, onHistory }) {
@@ -7,78 +7,71 @@ export default function MenuPanel({ menuItems, onProductClick, onLogout, onHisto
   const [searchQuery, setSearchQuery] = useState("");
 
   const filteredProducts = useMemo(() => {
-    // 1. Filtrar solo por categoría principal
     let products = menuItems.filter((item) => item.mainCategory === activeCategory);
-
-    // 2. Buscador
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       products = products.filter((p) => p.name.toLowerCase().includes(q));
     }
-
     return products;
   }, [menuItems, activeCategory, searchQuery]);
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-slate-50">
-      {/* Header Completo: Título, Buscador y Botones de Acción */}
-      <div className="bg-white px-6 py-4 shadow-sm flex justify-between items-center shrink-0 border-b border-slate-200 z-10 gap-4">
+    <div className="flex-1 flex flex-col h-full bg-slate-950">
+      {/* Header */}
+      <div className="bg-slate-900/50 backdrop-blur-md px-6 py-4 shadow-lg flex justify-between items-center shrink-0 border-b border-slate-800 z-10 gap-4">
         
         {/* Título */}
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="bg-orange-100 p-2 rounded-lg">
-            <Flame className="text-orange-600 fill-orange-600" size={24} /> 
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2.5 rounded-xl shadow-lg shadow-orange-500/20">
+            <Flame className="text-white fill-white" size={24} /> 
           </div>
-          <h1 className="text-xl font-black tracking-tight text-slate-900 hidden sm:block">
-            Pizza Brava
+          <h1 className="text-xl font-black tracking-tight text-white hidden sm:block">
+            Pizza<span className="text-orange-500">Brava</span>
           </h1>
         </div>
 
-        {/* Barra de Búsqueda Central */}
+        {/* Buscador Oscuro */}
         <div className="relative group flex-1 max-w-md mx-auto">
-          <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-orange-500 transition-colors" size={20} />
+          <Search className="absolute left-3 top-2.5 text-slate-500 group-focus-within:text-orange-500 transition-colors" size={20} />
           <input
             type="text"
             placeholder="Buscar producto..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 focus:ring-2 focus:ring-orange-500 focus:bg-white focus:border-transparent outline-none transition-all"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 focus:ring-2 focus:ring-orange-500 focus:bg-slate-900 focus:border-transparent outline-none transition-all placeholder-slate-500"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
-        {/* Botones de Acción (Movidos aquí para no tapar el carrito) */}
+        {/* Botones de Acción */}
         <div className="flex items-center gap-2 shrink-0">
             <button 
                 onClick={onHistory}
-                className="p-2.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 rounded-full transition-all border border-transparent hover:border-blue-100"
-                title="Ver Historial"
+                className="p-2.5 text-slate-400 hover:bg-slate-800 hover:text-blue-400 rounded-xl transition-all border border-transparent hover:border-slate-700"
+                title="Historial"
             >
                 <History size={22} />
             </button>
-            <div className="h-8 w-px bg-slate-200 mx-1"></div>
+            <div className="h-8 w-px bg-slate-800 mx-1"></div>
             <button 
                 onClick={onLogout}
-                className="p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-all border border-transparent hover:border-red-100"
-                title="Cerrar Sesión"
+                className="p-2.5 text-slate-400 hover:bg-red-500/10 hover:text-red-500 rounded-xl transition-all border border-transparent hover:border-red-500/20"
+                title="Salir"
             >
                 <LogOut size={22} />
             </button>
         </div>
       </div>
 
-      {/* Categorías (Tabs estilo Píldora) */}
-      <div className="px-6 py-4 bg-white border-b border-slate-200/60 overflow-x-auto no-scrollbar flex gap-2 shrink-0">
+      {/* Categorías (Píldoras Oscuras) */}
+      <div className="px-6 py-4 bg-slate-950 border-b border-slate-800 overflow-x-auto no-scrollbar flex gap-2 shrink-0">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
-            onClick={() => {
-              setActiveCategory(cat.id);
-              setSearchQuery("");
-            }}
-            className={`flex-shrink-0 px-5 py-2.5 rounded-full font-bold text-sm transition-all duration-200 transform active:scale-95 whitespace-nowrap ${
+            onClick={() => { setActiveCategory(cat.id); setSearchQuery(""); }}
+            className={`flex-shrink-0 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 transform active:scale-95 whitespace-nowrap border ${
               activeCategory === cat.id
-                ? "bg-slate-900 text-white shadow-lg shadow-slate-900/20"
-                : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-orange-50 hover:text-orange-600 hover:border-orange-200"
+                ? "bg-orange-600 text-white border-orange-500 shadow-lg shadow-orange-900/30"
+                : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200 hover:border-slate-700"
             }`}
           >
             {cat.label}
@@ -87,11 +80,11 @@ export default function MenuPanel({ menuItems, onProductClick, onLogout, onHisto
       </div>
 
       {/* Grid de Productos */}
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+      <div className="flex-1 overflow-y-auto p-6 bg-slate-950">
         {filteredProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-60">
+          <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-60">
             <UtensilsCrossed size={64} className="mb-4 stroke-1"/>
-            <p className="text-lg font-medium">No hay productos en esta categoría.</p>
+            <p className="text-lg font-medium">Sin resultados.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-5 pb-20 md:pb-4">
@@ -99,34 +92,36 @@ export default function MenuPanel({ menuItems, onProductClick, onLogout, onHisto
               <button
                 key={product.id}
                 onClick={() => onProductClick(product)}
-                className="bg-white rounded-2xl shadow-sm border border-slate-200/60 flex flex-col items-start text-left group relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:border-orange-200 hover:-translate-y-1 active:scale-[0.98] h-full"
+                className="bg-slate-900 rounded-2xl border border-slate-800 flex flex-col items-start text-left group relative overflow-hidden transition-all duration-200 hover:shadow-xl hover:shadow-orange-900/10 hover:border-orange-500/50 hover:-translate-y-1 active:scale-[0.98] h-full"
               >
-                {/* Decoración superior */}
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-red-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                {/* Glow Effect on Hover */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 to-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
                 <div className="p-5 w-full flex flex-col h-full">
                     <div className="flex justify-between items-start mb-3 w-full">
                         <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${
-                            product.station === 'cocina' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                            product.station === 'cocina' 
+                            ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' 
+                            : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                         }`}>
                             {product.station || "cocina"}
                         </span>
                     </div>
                     
-                    <h3 className="font-bold text-slate-700 group-hover:text-orange-600 transition-colors text-lg leading-tight mb-1 line-clamp-2">
+                    <h3 className="font-bold text-slate-200 group-hover:text-orange-400 transition-colors text-lg leading-tight mb-2 line-clamp-2">
                         {product.name}
                     </h3>
                     
-                    <p className="text-xs text-slate-400 line-clamp-2 mb-4 flex-1">
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">
                         {product.description || "Deliciosa preparación especial de la casa."}
                     </p>
 
-                    <div className="w-full flex justify-between items-end mt-auto">
-                        <span className="font-black text-xl text-slate-900 group-hover:text-slate-700">
+                    <div className="w-full flex justify-between items-end mt-auto pt-4 border-t border-slate-800/50">
+                        <span className="font-black text-xl text-white group-hover:text-orange-200 transition-colors">
                             ${product.price?.toFixed(2)}
                         </span>
-                        <div className="bg-slate-100 p-2 rounded-lg text-slate-400 group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        <div className="bg-slate-800 p-2 rounded-lg text-slate-500 group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                            <ChevronRight size={18} strokeWidth={3}/>
                         </div>
                     </div>
                 </div>
