@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { db } from "../services/firebase";
+import { db, auth } from "../services/firebase"; // Agregado 'auth'
 import { useOrders } from "../hooks/useOrders";
-import { CheckCircle, LogOut, ChefHat, Bell, PackageCheck, Play, Clock, Flame } from "lucide-react";
+import { CheckCircle, LogOut, ChefHat, Bell, PackageCheck, Play, Clock, Flame, AlertTriangle } from "lucide-react"; // Asegúrate de tener AlertTriangle importado si lo usas
 import { toast } from "react-hot-toast";
 import { STATUS } from "../constants/types";
 import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
@@ -29,6 +29,9 @@ export default function KitchenDisplay({ onLogout }) {
   };
 
   useEffect(() => {
+    // GUARDIA DE SEGURIDAD: No ejecutar query si no hay usuario autenticado
+    if (!auth.currentUser) return;
+
     const q = query(
       collection(db, "orders"),
       where("status", "in", [STATUS.NEW, STATUS.PROCESS, STATUS.READY]),
@@ -52,6 +55,8 @@ export default function KitchenDisplay({ onLogout }) {
         }
       });
       setOrders(ordersData);
+    }, (error) => {
+      console.log("Kitchen listener disconnected:", error.code);
     });
 
     const timer = setInterval(() => setTick(t => t + 1), 30000);

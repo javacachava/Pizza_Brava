@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { useAuth } from "../hooks/useAuth";
-import { ChefHat, ArrowRight, Lock, User } from "lucide-react";
+import { ChefHat, ArrowRight, Lock, User, Eye, EyeOff } from "lucide-react";
 
 // Imagen de fondo de alta calidad (Pizzería oscura)
 const BG_IMAGE = "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=2070&auto=format&fit=crop";
@@ -8,6 +7,9 @@ const BG_IMAGE = "https://images.unsplash.com/photo-1513104890138-7c749659a591?q
 export default function Login({ onLogin, error }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
+  // State for password visibility toggle
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -38,15 +40,16 @@ export default function Login({ onLogin, error }) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-500/20 border border-red-500/50 text-red-200 p-4 rounded-xl text-sm text-center font-medium backdrop-blur-sm">
+            <div className="bg-red-500/20 border border-red-500/50 text-red-200 p-4 rounded-xl text-sm text-center font-medium backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
               {error}
             </div>
           )}
 
+          {/* Email Input */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Correo Electrónico</label>
             <div className="relative group">
-              <User className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-orange-400 transition-colors" size={20} />
+              <User className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-orange-400 transition-colors pointer-events-none" size={20} />
               <input
                 type="email"
                 required
@@ -58,18 +61,33 @@ export default function Login({ onLogin, error }) {
             </div>
           </div>
 
+          {/* Password Input with Eye Toggle */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Contraseña</label>
             <div className="relative group">
-              <Lock className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-orange-400 transition-colors" size={20} />
+              <Lock className="absolute left-4 top-3.5 text-slate-500 group-focus-within:text-orange-400 transition-colors pointer-events-none" size={20} />
+              
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
-                className="w-full bg-slate-900/60 border border-slate-700 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
+                className="w-full bg-slate-900/60 border border-slate-700 rounded-xl pl-12 pr-12 py-3.5 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
+
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-2.5 p-1 text-slate-500 hover:text-white hover:bg-white/10 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-orange-500/50"
+                title={showPassword ? "Ocultar contraseña" : "Ver contraseña"}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} className="transition-transform animate-in zoom-in spin-in-90 duration-200" />
+                ) : (
+                  <Eye size={20} className="transition-transform animate-in zoom-in spin-in-90 duration-200" />
+                )}
+              </button>
             </div>
           </div>
           

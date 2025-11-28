@@ -9,6 +9,21 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 1. Logic for Automatic Logout (Tab Close / Refresh)
+  useEffect(() => {
+    const handleTabClose = () => {
+      // Synchronous cleanup ensures security before the thread dies
+      localStorage.clear();
+      sessionStorage.clear();
+      // Async attempt to notify Firebase (best effort)
+      signOut(auth).catch((err) => console.error("Logout error", err));
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+    return () => window.removeEventListener('beforeunload', handleTabClose);
+  }, []);
+
+  // 2. Auth State Observer
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true);
@@ -20,21 +35,14 @@ export function useAuth() {
           if (userDoc.exists()) {
             const userData = userDoc.data();
             
-            // --- VALIDACIÓN DE ESTADO DE USUARIO ---
             if (userData.active === false) {
                 console.warn("Usuario desactivado intentó ingresar.");
                 setError("Tu cuenta ha sido desactivada. Contacta al administrador.");
-                
-                // Forzamos el logout si la cuenta está desactivada en Firestore
                 await signOut(auth);
                 setUser(null);
                 setRole(null);
             } else {
-                // ✅ MEJORA: Forzar refresco del token
-                // Esto actualiza el token JWT local para asegurar que request.auth.token 
-                // tenga los claims más recientes (ej. roles, status) para las reglas de seguridad.
                 await currentUser.getIdToken(true);
-
                 setRole(userData.role);
                 setUser(currentUser);
                 setError(null);
@@ -82,6 +90,7 @@ export function useAuth() {
   const logout = async () => {
     try {
       await signOut(auth);
+      localStorage.clear(); // Ensure local cleanup on manual logout too
       setRole(null);
       setUser(null);
     } catch (e) {

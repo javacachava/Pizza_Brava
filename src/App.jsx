@@ -13,7 +13,7 @@ import Login from "./components/Login";
 import ReceptionPanel from "./components/ReceptionPanel";
 import KitchenDisplay from "./components/KitchenDisplay";
 import AdminPanel from "./components/AdminPanel";
-import NetworkStatus from "./components/NetworkStatus"; // ✅ Importación añadida
+import NetworkStatus from "./components/NetworkStatus";
 
 export default function App() {
   const { user, role, loading, error, login, logout } = useAuth();
@@ -27,8 +27,7 @@ export default function App() {
     return (
       <>
         <Toaster position="top-center" reverseOrder={false} />
-        {/* También podrías querer mostrar el NetworkStatus en el login si lo deseas */}
-        <NetworkStatus /> 
+        {/* NetworkStatus eliminado de aquí para evitar lecturas sin permiso */}
         <Login onLogin={login} error={error} />
       </>
     );
@@ -37,7 +36,6 @@ export default function App() {
   // 2. Enrutador por Rol
   return (
     <>
-      {/* EL TOASTER DEBE ESTAR AQUÍ PARA QUE FUNCIONE EN TODA LA APP */}
       <Toaster 
         position="top-center" 
         reverseOrder={false} 
@@ -50,21 +48,18 @@ export default function App() {
             fontSize: '14px',
             fontWeight: 'bold',
           },
-          success: {
-            style: { background: '#22c55e' },           },
-          error: {
-            style: { background: '#ef4444' }, 
-          },
+          success: { style: { background: '#22c55e' } },
+          error: { style: { background: '#ef4444' } },
         }}
       />
 
+      {/* Se renderiza solo cuando hay usuario autenticado */}
       <NetworkStatus />
 
       {role === 'recepcion' && <ReceptionPanel onLogout={logout} />}
       {role === 'cocina' && <KitchenDisplay onLogout={logout} />}
       {role === 'admin' && <AdminPanel onLogout={logout} />}
       
-      {/* Fallback para roles desconocidos */}
       {!['recepcion', 'cocina', 'admin'].includes(role) && (
         <div className="h-screen flex flex-col items-center justify-center bg-slate-100">
           <h1 className="text-2xl font-bold text-red-600">Rol desconocido</h1>
