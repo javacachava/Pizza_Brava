@@ -2,54 +2,56 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- FUNCIONES AUXILIARES ---
-    
-    // Verifica que el usuario esté autenticado y su cuenta esté activa
-    function isActive() {
-      return request.auth != null && 
-             request.auth.token.active == true;
+    // --- 1. TU SUPER-PODER (Hardcoded Admin) ---
+    // Aquí pegas tu UID real. Esto es infalible.
+    function isSuperAdmin() {
+      return request.auth.uid == "oK9b8ARXVpZ3gLAqU4swtW6JEl22"; 
     }
 
-    // Verifica roles específicos
+    // --- 2. FUNCIONES DE LECTURA DIRECTA ---
+    // Esta función va a LEER el documento del usuario en la base de datos
+    // para ver si está activo y qué rol tiene.
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isActive() {
+      return request.auth != null && (isSuperAdmin() || getUserData().active == true);
+    }
+
     function isAdmin() {
-      return isActive() && request.auth.token.role == 'admin';
+      return isSuperAdmin() || (isActive() && getUserData().role == 'admin');
     }
     
     function isStaff() {
-      return isActive() && (request.auth.token.role in ['recepcion', 'cocina', 'admin']);
+      return isActive() && (getUserData().role in ['recepcion', 'cocina', 'admin']);
     }
 
     // --- REGLAS DE COLECCIONES ---
 
-    // 1. Colección de Usuarios
     match /users/{userId} {
-      // ✅ CORREGIDO: El usuario puede leer su propio perfil O un admin puede leer todos
-      allow read: if (request.auth != null && request.auth.uid == userId) || isAdmin();
-      allow write: if isAdmin(); 
+      // El admin puede ver todo. El usuario solo su propio perfil.
+      allow read: if isSuperAdmin() || request.auth.uid == userId;
+      // Solo el admin puede crear/editar/borrar usuarios
+      allow write: if isSuperAdmin(); 
     }
 
-    // 2. Contadores (PARA QUE FUNCIONE useOrders)
     match /counters/{counterId} {
-      // Necesario para generar el número de orden consecutivo
       allow read, write: if isStaff();
     }
 
-    // 3. Órdenes
     match /orders/{orderId} {
       allow read, write: if isStaff();
-      
       match /items/{itemId} {
         allow read, write: if isStaff();
       }
     }
 
-    // 4. Menú
     match /menuItems/{itemId} {
       allow read: if isStaff(); 
       allow write: if isAdmin();
     }
     
-    // 5. Configuración
     match /configuration/{configId} {
       allow read: if isStaff();
       allow write: if isAdmin();
