@@ -1,56 +1,34 @@
 import React from "react";
-
-// MODALES PRINCIPALES
-import PizzaClassicModal from "./modals/PizzaClassicModal";
-import PizzaSpecialModal from "./modals/PizzaSpecialModal";
-import ComboBuilderModal from "./modals/ComboBuilderModal";
-import BeverageFlavorModal from "./modals/BeverageFlavorModal";
-import HamburgerOptionsModal from "./modals/HamburgerOptionsModal";
-import ExtrasSelector from "./modals/ExtrasSelector";
+import ProductOptionsModal from "./ProductOptionsModal";
 
 export default function ProductDispatcher({
   selectedProduct,
   onClose,
   onConfirm,
-  ingredients,
-  sides,
-  drinks,
-  potatoes,
-  sauces,
-  globalConfig
+  globalConfig,
+  ingredients, // por ahora no usado, pero lo dejamos por compatibilidad
+  sides,       // idem
+  drinks,      // idem
+  potatoes,    // idem
+  sauces       // idem
 }) {
   if (!selectedProduct) return null;
 
-  const category = selectedProduct.mainCategory?.toLowerCase();
-  const flags = selectedProduct;
+  const mainCategory = (selectedProduct.mainCategory || "").toLowerCase();
+
+  const isPizza =
+    mainCategory === "pizzas" ||
+    selectedProduct.pizzaType === "Clasica" ||
+    selectedProduct.pizzaType === "Especialidad";
 
   // ============================================================
-  // 🟠 1. COMBOS (reglas avanzadas)
+  // 1) PIZZAS → usar ProductOptionsModal (tamaños + ingredientes)
   // ============================================================
-  if (flags.isCombo === true || category === "combos") {
+  if (isPizza) {
     return (
-      <ComboBuilderModal
-        combo={selectedProduct}
-        ingredients={ingredients}
-        sides={sides}
-        drinks={drinks}
-        potatoes={potatoes}
-        sauces={sauces}
-        globalRules={globalConfig}
-        onClose={onClose}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-
-  // ============================================================
-  // 🟣 2. PIZZA CLÁSICA
-  // ============================================================
-  if (flags.isClassic === true || category === "pizzas") {
-    return (
-      <PizzaClassicModal
+      <ProductOptionsModal
+        isOpen={true}
         product={selectedProduct}
-        ingredients={ingredients}
         globalConfig={globalConfig}
         onClose={onClose}
         onConfirm={onConfirm}
@@ -59,70 +37,14 @@ export default function ProductDispatcher({
   }
 
   // ============================================================
-  // 🟡 3. PIZZA ESPECIALIDAD
+  // 2) RESTO DE PRODUCTOS → se agregan directo al carrito
+  //    (agua, birrias, hamburguesas simples, combos simples, etc.)
   // ============================================================
-  if (flags.isSpecialty === true) {
-    return (
-      <PizzaSpecialModal
-        product={selectedProduct}
-        onClose={onClose}
-        onConfirm={onConfirm}
-        globalConfig={globalConfig}
-      />
-    );
-  }
-
-  // ============================================================
-  // 🟢 4. BEBIDAS CON SABOR
-  // ============================================================
-  if (flags.requiresFlavor === true || category === "bebidas") {
-    return (
-      <BeverageFlavorModal
-        product={selectedProduct}
-        drinks={drinks}
-        onClose={onClose}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-
-  // ============================================================
-  // 🔵 5. HAMBURGUESAS (papas + salsas)
-  // ============================================================
-  if (category === "hamburguesas") {
-    return (
-      <HamburgerOptionsModal
-        product={selectedProduct}
-        potatoes={potatoes}
-        sauces={sauces}
-        onClose={onClose}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-
-  // ============================================================
-  // 🟤 6. COMPLEMENTOS / SIDES
-  // ============================================================
-  if (category === "complementos" || category === "sides") {
-    return (
-      <ExtrasSelector
-        product={selectedProduct}
-        onClose={onClose}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-
-  // ============================================================
-  // ⚪ 7. PRODUCTO SIMPLE → agregar directo sin modal
-  // ============================================================
-  return onConfirm({
-    name: selectedProduct.name,
-    qty: 1,
-    price: selectedProduct.price,
-    productId: selectedProduct.id,
-    mainCategory: selectedProduct.mainCategory,
-    options: {}
+  onConfirm({
+    ...selectedProduct,
+    qty: selectedProduct.qty ?? 1
   });
+
+  // No renderizamos modal en este caso
+  return null;
 }

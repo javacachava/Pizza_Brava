@@ -5,8 +5,8 @@ export default function TicketModal({
   isOpen,
   onClose,
   onConfirm,
-  ticketItems,
-  orderData,
+  ticketItems = [],
+  orderData = {},
   currentOrderId,
   currentOrderNumber,
   loading,
@@ -15,144 +15,238 @@ export default function TicketModal({
   if (!isOpen) return null;
 
   const ticketTotal = useMemo(() => {
+    if (!Array.isArray(ticketItems)) return 0;
     return ticketItems.reduce(
-      (total, item) => total + item.price * item.qty,
+      (total, item) =>
+        total + Number(item.price || 0) * Number(item.qty || 1),
       0
     );
   }, [ticketItems]);
 
+  const {
+    orderType = "Mostrador",
+    customerName = "Cliente Mostrador",
+    customerPhone,
+    customerAddress,
+    orderNotes,
+    paymentMethod
+  } = orderData || {};
+
+  const qrData = currentOrderId
+    ? `https://pizzabrava.app/orders/${currentOrderId}`
+    : `orden-temporal-${tempQrId}`;
+
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget && !loading) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="bg-slate-900 text-white p-4 flex justify-between items-center shrink-0">
-          <h3 className="font-bold">Ticket Digital</h3>
-          <button
-            onClick={onClose}
-            className="hover:bg-white/10 p-1 rounded"
-          >
-            <X size={20} />
-          </button>
+    <div
+      className="fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center px-4 py-6"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-slate-950 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden">
+        {/* Lado izquierdo: Ticket estilo térmico */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-orange-400">
+                Resumen de orden
+              </p>
+              <p className="text-sm font-semibold text-slate-100">
+                {currentOrderId
+                  ? `Orden #${currentOrderNumber}`
+                  : "Orden pendiente de enviar"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+              disabled={loading}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="p-6 bg-yellow-50 font-mono text-sm leading-relaxed text-slate-900 border-b-2 border-dashed border-slate-400 overflow-y-auto flex-1">
+            <div className="text-center mb-4">
+              <h2 className="text-xl font-black uppercase tracking-widest text-slate-900">
+                Pizza Brava
+              </h2>
+              <p className="text-xs text-slate-700">Santa Ana, El Salvador</p>
+            </div>
+
+            <div className="flex justify-between border-b border-slate-400 pb-2 mb-2 font-bold text-xs">
+              <span>
+                Orden:{" "}
+                {currentOrderId ? `#${currentOrderNumber}` : "PENDIENTE"}
+              </span>
+              <span>
+                {new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </span>
+            </div>
+
+            <div className="mb-4 text-[11px] space-y-1">
+              <p>
+                <strong>Cliente:</strong>{" "}
+                {customerName || "Cliente Mostrador"}
+              </p>
+              {customerPhone && (
+                <p>
+                  <strong>Tel:</strong> {customerPhone}
+                </p>
+              )}
+              {customerAddress && (
+                <p>
+                  <strong>Dirección:</strong> {customerAddress}
+                </p>
+              )}
+              <p>
+                <strong>Tipo de orden:</strong> {orderType}
+              </p>
+              {paymentMethod && (
+                <p>
+                  <strong>Pago:</strong> {paymentMethod}
+                </p>
+              )}
+              {orderNotes && (
+                <p className="mt-1">
+                  <strong>Notas:</strong> {orderNotes}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-slate-400 pt-2 mt-2 text-xs">
+              {ticketItems && ticketItems.length > 0 ? (
+                ticketItems.map((item, idx) => (
+                  <div
+                    key={item.cartItemId || item.id || idx}
+                    className="mb-2"
+                  >
+                    <div className="flex justify-between">
+                      <span>
+                        {item.qty} x {item.name}
+                      </span>
+                      <span>
+                        $
+                        {(
+                          Number(item.price || 0) * Number(item.qty || 1)
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                    {Array.isArray(item.details) &&
+                      item.details.length > 0 && (
+                        <ul className="pl-4 list-disc text-[10px] text-slate-600 mt-1">
+                          {item.details.map((d, i) => (
+                            <li key={i}>{d}</li>
+                          ))}
+                        </ul>
+                      )}
+                    {item.configuration &&
+                      !Array.isArray(item.details) && (
+                        <p className="pl-4 text-[10px] text-slate-600 mt-1">
+                          {JSON.stringify(item.configuration)}
+                        </p>
+                      )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-[11px] text-slate-500">
+                  No hay productos en el ticket.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-between font-bold text-lg mt-4 mb-6">
+              <span>TOTAL</span>
+              <span>${ticketTotal.toFixed(2)}</span>
+            </div>
+
+            <div className="flex flex-col items-center">
+              <div className="bg-white p-2 mb-2 border border-slate-300 rounded-lg">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(
+                    qrData
+                  )}`}
+                  alt="QR Code"
+                  className="w-32 h-32"
+                />
+              </div>
+              <p className="text-[10px] text-center text-slate-600">
+                {currentOrderId
+                  ? "Escanea para ver el detalle de la orden."
+                  : "Orden temporal. Se generará un código definitivo al enviar."}
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="p-6 bg-yellow-50 font-mono text-sm leading-relaxed border-b-2 border-dashed border-slate-300 overflow-y-auto flex-1">
-          <div className="text-center mb-4">
-            <h2 className="text-xl font-bold uppercase tracking-wider text-slate-900">
-              Pizza Brava
-            </h2>
-            <p>Santa Ana, El Salvador</p>
-          </div>
-
-          <div className="flex justify-between border-b border-slate-300 pb-2 mb-2 font-bold">
-            <span>
-              Orden:{" "}
-              {currentOrderId
-                ? `#${currentOrderNumber}`
-                : "PENDIENTE"}
-            </span>
-            <span>
-              {new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit"
-              })}
-            </span>
-          </div>
-
-          <div className="mb-4 text-xs space-y-1">
-            <p>
-              <strong>Cliente:</strong>{" "}
-              {orderData.customerName?.toUpperCase() ||
-                "MOSTRADOR"}
+        {/* Lado derecho: acciones */}
+        <div className="w-full md:w-72 bg-slate-950 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 p-6 gap-4">
+          <div className="space-y-2 text-sm">
+            <p className="text-slate-400 uppercase text-[10px] font-bold tracking-[0.2em]">
+              Resumen
             </p>
-            <p>
-              <strong>Tipo:</strong>{" "}
-              {orderData.orderType?.toUpperCase()}
-            </p>
-            {orderData.orderType === "telefono" && (
-              <>
-                {orderData.customerPhone && (
-                  <p>
-                    <strong>Tel:</strong>{" "}
-                    {orderData.customerPhone}
-                  </p>
-                )}
-                {orderData.customerAddress && (
-                  <p>
-                    <strong>Dirección:</strong>{" "}
-                    {orderData.customerAddress}
-                  </p>
-                )}
-              </>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-300">Total a cobrar</span>
+              <span className="text-lg font-black text-orange-400">
+                ${ticketTotal.toFixed(2)}
+              </span>
+            </div>
+            {orderType && (
+              <p className="text-xs text-slate-500">
+                Tipo:{" "}
+                <span className="font-semibold text-slate-200">
+                  {orderType}
+                </span>
+              </p>
             )}
-            {orderData.orderNotes && (
-              <p className="italic bg-white p-1 border border-slate-200 font-bold">
-                "{orderData.orderNotes}"
+            {customerName && (
+              <p className="text-xs text-slate-500">
+                Cliente:{" "}
+                <span className="font-semibold text-slate-200">
+                  {customerName}
+                </span>
               </p>
             )}
           </div>
 
-          <div className="space-y-2 mb-4 border-b border-slate-300 pb-4">
-            {ticketItems.map((item, idx) => (
-              <div key={idx} className="flex justify-between">
-                <span>
-                  {item.qty} x {item.name}
-                </span>
-                <span>
-                  ${(item.price * item.qty).toFixed(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-between font-bold text-lg mb-6">
-            <span>TOTAL</span>
-            <span>${ticketTotal.toFixed(2)}</span>
-          </div>
-
-          <div className="flex flex-col items-center">
-            <div className="bg-white p-2 mb-2 border border-slate-200">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(
-                  currentOrderId
-                    ? `https://pizzabrava.app/orders/${currentOrderId}`
-                    : `orden-temporal-${tempQrId}`
-                )}`}
-                alt="QR Code"
-                className="w-32 h-32"
-              />
-            </div>
-            <p className="text-xs text-center text-slate-500">
-              {currentOrderId
-                ? "Escanear para ver factura"
-                : "Confirmar para generar orden"}
-            </p>
-          </div>
-        </div>
-
-        <div className="p-4 flex gap-3 bg-white shrink-0">
-          {!currentOrderId ? (
-            <>
+          <div className="space-y-3">
+            {!currentOrderId ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={loading || ticketItems.length === 0}
+                  className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? "Enviando..." : "CONFIRMAR"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-lg border border-slate-700 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : (
               <button
+                type="button"
                 onClick={onClose}
-                className="flex-1 py-3 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg"
+                className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg shadow-lg hover:bg-slate-800"
               >
-                Volver
+                Nueva Orden
               </button>
-              <button
-                onClick={onConfirm}
-                disabled={loading}
-                className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-lg disabled:opacity-50"
-              >
-                {loading ? "Enviando..." : "CONFIRMAR"}
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={onClose}
-              className="w-full py-3 bg-slate-900 text-white font-bold rounded-lg shadow-lg hover:bg-slate-800"
-            >
-              Nueva Orden
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

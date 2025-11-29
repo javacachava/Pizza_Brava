@@ -1,220 +1,424 @@
-import React, { useEffect, useState, useRef } from "react";
-import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
-import { db, auth } from "../services/firebase"; // Agregado 'auth'
+import React, { useEffect, useState, useRef, useMemo } from "react";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
+import { db, auth } from "../services/firebase";
 import { useOrders } from "../hooks/useOrders";
-import { CheckCircle, LogOut, ChefHat, Bell, PackageCheck, Play, Clock, Flame, AlertTriangle } from "lucide-react"; // Asegúrate de tener AlertTriangle importado si lo usas
-import { toast } from "react-hot-toast";
+import {
+  LogOut,
+  ChefHat,
+  Bell,
+  BellOff,
+  Clock,
+  CheckCircle,
+  PackageCheck
+} from "lucide-react";
 import { STATUS } from "../constants/types";
 import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
-  const [tick, setTick] = useState(0); 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
-  
-  const { updateOrderStatus } = useOrders();
-  const audioRef = useRef(new Audio(NOTIFICATION_SOUND_BASE64));
+  const [now, setNow] = useState(Date.now());
 
+  const { updateOrderStatus } = useOrders();
+
+  const audioRef = useRef(null);
+  const lastLatestTimeRef = useRef(null);
+
+  // Reloj para recalcular tiempos en cocina
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Inicializar audio tras interacción del usuario
   const initAudio = () => {
-    audioRef.current.play().then(() => {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(NOTIFICATION_SOUND_BASE64);
+        audioRef.current.load();
+      }
       setAudioInitialized(true);
       setSoundEnabled(true);
-    }).catch(e => {
+    } catch (e) {
       console.error("Error inicializando audio:", e);
-      setAudioInitialized(true);
-    });
+    }
   };
 
+  const playNotification = () => {
+    if (!audioInitialized || !soundEnabled || !audioRef.current) return;
+    try {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    } catch (e) {
+      console.error("Error reproduciendo sonido:", e);
+    }
+  };
+
+  // Listener de órdenes
   useEffect(() => {
-    // GUARDIA DE SEGURIDAD: No ejecutar query si no hay usuario autenticado
     if (!auth.currentUser) return;
 
     const q = query(
       collection(db, "orders"),
-      where("status", "in", [STATUS.NEW, STATUS.PROCESS, STATUS.READY]),
-      orderBy("createdAt", "asc")
+      orderBy("createdAt", "asc"),
+      limit(100)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" && change.doc.data().status === STATUS.NEW) {
-            if (soundEnabled) {
-                audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(e => console.log("Audio bloqueado"));
-            } else {
-                toast("¡Nueva Orden!", { icon: '🔔' });
-            }
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data()
+        }));
+
+        // solo nos interesan las que no están despachadas
+        const active = list.filter(
+          (o) =>
+            o.status === STATUS.NEW ||
+            o.status === STATUS.PROCESS ||
+            o.status === STATUS.READY
+        );
+
+        setOrders(active);
+
+        // detectar nuevas órdenes (según createdAt)
+        const times = active
+          .map((o) =>
+            o.createdAt?.toDate
+              ? o.createdAt.toDate().getTime()
+              : o.createdAt instanceof Date
+              ? o.createdAt.getTime()
+              : null
+          )
+          .filter((t) => typeof t === "number");
+
+        if (!times.length) return;
+
+        const latest = Math.max(...times);
+
+        if (lastLatestTimeRef.current == null) {
+          // primera carga: no sonar
+          lastLatestTimeRef.current = latest;
+          return;
         }
-      });
-      setOrders(ordersData);
-    }, (error) => {
-      console.log("Kitchen listener disconnected:", error.code);
-    });
 
-    const timer = setInterval(() => setTick(t => t + 1), 30000);
-    return () => { unsubscribe(); clearInterval(timer); };
-  }, [soundEnabled]);
+        if (latest > lastLatestTimeRef.current) {
+          lastLatestTimeRef.current = latest;
+          playNotification();
+        }
+      },
+      (error) => {
+        console.error("Error en snapshot de cocina:", error);
+      }
+    );
 
-  const handleStatusChange = async (order) => {
-    let nextStatus = STATUS.PROCESS;
-    if (order.status === STATUS.NEW) nextStatus = STATUS.PROCESS;
-    else if (order.status === STATUS.PROCESS) nextStatus = STATUS.READY;
-    else if (order.status === STATUS.READY) nextStatus = STATUS.DELIVERED; 
+    return () => unsub();
+  }, [soundEnabled, audioInitialized]);
 
-    await updateOrderStatus(order.id, nextStatus);
+  const grouped = useMemo(() => {
+    return {
+      [STATUS.NEW]: orders.filter((o) => o.status === STATUS.NEW),
+      [STATUS.PROCESS]: orders.filter((o) => o.status === STATUS.PROCESS),
+      [STATUS.READY]: orders.filter((o) => o.status === STATUS.READY)
+    };
+  }, [orders]);
+
+  const getMinutesInKitchen = (order) => {
+    try {
+      const d = order.createdAt?.toDate
+        ? order.createdAt.toDate()
+        : order.createdAt instanceof Date
+        ? order.createdAt
+        : null;
+      if (!d) return null;
+      const diffMs = now - d.getTime();
+      return Math.max(0, Math.floor(diffMs / 60000));
+    } catch {
+      return null;
+    }
   };
 
-  const getUrgencyColor = (timestamp, status) => {
-    if (status === STATUS.READY) return "emerald"; 
-    if (!timestamp) return "blue";
-    
-    const diffMinutes = (new Date() - timestamp.toDate()) / 1000 / 60;
-    if (diffMinutes > 25) return "red"; 
-    if (diffMinutes > 15) return "yellow"; 
-    return "blue"; 
+  const handleStatusChange = (order, nextStatus) => {
+    if (!order?.id) return;
+    updateOrderStatus(order.id, nextStatus);
   };
 
+  // Pantalla inicial para habilitar audio (obligatorio por navegador)
   if (!audioInitialized) {
     return (
       <div className="h-screen bg-slate-950 flex flex-col items-center justify-center text-white gap-8 p-4 selection:bg-orange-500">
         <div className="relative">
-            <div className="absolute -inset-4 bg-orange-600 rounded-full opacity-20 blur-xl animate-pulse"></div>
-            <ChefHat size={100} className="text-orange-500 relative z-10"/>
+          <div className="absolute -inset-6 bg-orange-500 rounded-full opacity-20 blur-2xl animate-pulse" />
+          <ChefHat size={96} className="text-orange-400 relative z-10" />
         </div>
         <div className="text-center space-y-2">
-            <h1 className="text-4xl font-black tracking-tight">KDS SYSTEM</h1>
-            <p className="text-slate-400 text-lg">Pantalla de Cocina Inteligente</p>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight">
+            PANTALLA DE COCINA
+          </h1>
+          <p className="text-slate-400 text-sm md:text-base max-w-md">
+            Toca el botón para activar el sistema de notificaciones sonoras
+            cuando llegue una nueva orden.
+          </p>
         </div>
-        <button 
+        <button
           onClick={initAudio}
-          className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 px-10 py-5 rounded-2xl font-bold text-xl shadow-xl shadow-green-900/20 hover:scale-105 transition-all flex items-center gap-3"
+          className="bg-gradient-to-r from-orange-500 to-red-500 px-8 py-3 rounded-2xl font-bold text-lg shadow-xl shadow-orange-900/30 hover:scale-105 active:scale-95 transition-transform"
         >
-          <Play size={28} fill="currentColor"/> INICIAR TURNO
+          Iniciar pantalla de cocina
         </button>
-        <p className="text-slate-500 text-xs opacity-60 max-w-xs text-center">
-          Al hacer clic, se habilitarán los permisos de audio para notificaciones de nuevas órdenes.
-        </p>
+        <button
+          onClick={onLogout}
+          className="mt-4 text-sm text-slate-400 hover:text-red-300 flex items-center gap-2"
+        >
+          <LogOut size={16} />
+          Salir
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 p-4 md:p-6 font-sans selection:bg-orange-500 selection:text-white">
+    <div className="h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-orange-500 selection:text-white">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800 backdrop-blur-sm sticky top-4 z-50 shadow-2xl">
-        <h1 className="text-3xl font-black text-white flex items-center gap-4 tracking-tight">
-          <div className="bg-orange-600 p-2.5 rounded-xl shadow-lg shadow-orange-600/20"><ChefHat size={32} className="text-white"/></div>
-          KDS <span className="text-slate-500 font-medium text-lg hidden sm:inline">| Cocina Principal</span>
-        </h1>
+      <header className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-            <button 
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all ${soundEnabled ? 'bg-green-600/20 text-green-400 border border-green-600/30' : 'bg-slate-800 text-slate-500 border border-slate-700'}`}
-            >
-                <Bell size={16} className={soundEnabled ? "fill-current" : ""} /> {soundEnabled ? "Sonido ON" : "Silencio"}
-            </button>
-            <button onClick={onLogout} className="bg-slate-800 p-2.5 rounded-xl hover:bg-red-500/20 hover:text-red-400 transition-colors border border-slate-700">
-                <LogOut size={20}/>
-            </button>
+          <div className="w-10 h-10 rounded-2xl bg-orange-500/20 border border-orange-500/50 flex items-center justify-center">
+            <ChefHat size={22} className="text-orange-300" />
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-orange-400 font-bold">
+              Cocina
+            </p>
+            <h1 className="text-lg font-bold">Órdenes en preparación</h1>
+          </div>
         </div>
-      </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-        {orders.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center py-32 text-slate-600 space-y-4 opacity-50">
-                <Flame size={80} className="animate-pulse"/>
-                <p className="text-2xl font-black uppercase tracking-widest">Todo Tranquilo</p>
-            </div>
-        )}
+        <div className="flex items-center gap-4">
+          {/* Resumen */}
+          <div className="hidden md:flex items-center gap-4 text-xs font-semibold">
+            <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
+              Nuevas:{" "}
+              <span className="text-orange-400">{grouped[STATUS.NEW].length}</span>
+            </span>
+            <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
+              En proceso:{" "}
+              <span className="text-yellow-300">
+                {grouped[STATUS.PROCESS].length}
+              </span>
+            </span>
+            <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
+              Listas:{" "}
+              <span className="text-emerald-300">
+                {grouped[STATUS.READY].length}
+              </span>
+            </span>
+          </div>
 
-        {orders.map(order => {
-            const color = getUrgencyColor(order.createdAt, order.status);
-            // Mapa de colores Tailwind dinámico
-            const borderColors = {
-                emerald: "border-emerald-500", red: "border-red-500", yellow: "border-yellow-500", blue: "border-blue-500"
-            };
-            const shadowColors = {
-                emerald: "shadow-emerald-500/20", red: "shadow-red-500/20", yellow: "shadow-yellow-500/20", blue: "shadow-blue-500/20"
-            };
+          {/* Sonido */}
+          <button
+            type="button"
+            onClick={() => setSoundEnabled((v) => !v)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border ${
+              soundEnabled
+                ? "bg-emerald-500/15 border-emerald-400 text-emerald-200"
+                : "bg-slate-900 border-slate-700 text-slate-300"
+            }`}
+          >
+            {soundEnabled ? (
+              <>
+                <Bell size={14} />
+                Sonido ON
+              </>
+            ) : (
+              <>
+                <BellOff size={14} />
+                Sonido OFF
+              </>
+            )}
+          </button>
+
+          {/* Logout */}
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-red-900/20 border border-red-700/60 text-red-200 hover:bg-red-800/50 hover:border-red-400 transition-colors"
+          >
+            <LogOut size={14} />
+            Salir
+          </button>
+        </div>
+      </header>
+
+      {/* Columns */}
+      <main className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 overflow-y-auto">
+        <OrdersColumn
+          title="Nuevas"
+          color="orange"
+          orders={grouped[STATUS.NEW]}
+          onAdvance={(order) =>
+            handleStatusChange(order, STATUS.PROCESS)
+          }
+          now={now}
+          getMinutesInKitchen={getMinutesInKitchen}
+        />
+        <OrdersColumn
+          title="En preparación"
+          color="yellow"
+          orders={grouped[STATUS.PROCESS]}
+          onAdvance={(order) => handleStatusChange(order, STATUS.READY)}
+          now={now}
+          getMinutesInKitchen={getMinutesInKitchen}
+        />
+        <OrdersColumn
+          title="Listas"
+          color="emerald"
+          orders={grouped[STATUS.READY]}
+          onAdvance={(order) =>
+            handleStatusChange(order, STATUS.DELIVERED)
+          }
+          now={now}
+          getMinutesInKitchen={getMinutesInKitchen}
+        />
+      </main>
+    </div>
+  );
+}
+
+function OrdersColumn({
+  title,
+  color,
+  orders,
+  onAdvance,
+  now,
+  getMinutesInKitchen
+}) {
+  const colorClasses = {
+    orange: {
+      header: "text-orange-300",
+      border: "border-orange-500/50",
+      pill: "bg-orange-500/15 text-orange-100 border-orange-400/60",
+      button:
+        "bg-orange-500/90 hover:bg-orange-400 text-white shadow-orange-900/40"
+    },
+    yellow: {
+      header: "text-yellow-300",
+      border: "border-yellow-500/40",
+      pill: "bg-yellow-500/10 text-yellow-100 border-yellow-400/60",
+      button:
+        "bg-yellow-400/90 hover:bg-yellow-300 text-slate-900 shadow-yellow-900/30"
+    },
+    emerald: {
+      header: "text-emerald-300",
+      border: "border-emerald-500/40",
+      pill: "bg-emerald-500/10 text-emerald-100 border-emerald-400/60",
+      button:
+        "bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 shadow-emerald-900/30"
+    }
+  }[color] || colorClasses?.orange;
+
+  return (
+    <section className="flex flex-col bg-slate-950 border border-slate-800 rounded-3xl shadow-md overflow-hidden">
+      <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              color === "orange"
+                ? "bg-orange-400"
+                : color === "yellow"
+                ? "bg-yellow-300"
+                : "bg-emerald-400"
+            }`}
+          />
+          <h2
+            className={`text-xs font-bold uppercase tracking-[0.2em] ${colorClasses.header}`}
+          >
+            {title}
+          </h2>
+        </div>
+        <span
+          className={`text-[11px] px-2 py-0.5 rounded-full border ${colorClasses.pill}`}
+        >
+          {orders.length} orden(es)
+        </span>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {orders.length === 0 ? (
+          <div className="h-24 flex items-center justify-center text-[11px] text-slate-500">
+            Sin órdenes en esta columna.
+          </div>
+        ) : (
+          orders.map((order) => {
+            const minutes = getMinutesInKitchen(order);
+            const items = order.itemsSnapshot || [];
 
             return (
-            <div key={order.id} className={`
-                relative flex flex-col h-full
-                rounded-2xl border-l-[6px] ${borderColors[color]} 
-                bg-slate-900 border-y border-r border-slate-800 
-                shadow-2xl ${shadowColors[color]} overflow-hidden group hover:border-slate-700 transition-all duration-300
-            `}>
-                {/* Header Tarjeta */}
-                <div className="p-4 border-b border-slate-800 flex justify-between items-start bg-slate-800/30">
-                    <div>
-                        <span className="font-black text-4xl text-white tracking-tighter">#{order.number}</span>
-                        <span className="block text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-widest bg-slate-800 px-2 py-0.5 rounded w-fit">
-                            {order.orderType || 'Mesa'}
-                        </span>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                         {/* Timer simulado */}
-                         <div className="flex items-center gap-1 text-xs font-mono font-bold text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800">
-                            <Clock size={12}/>
-                            {order.createdAt?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Items */}
-                <div className="p-5 flex-1 space-y-4 overflow-y-auto max-h-[300px]">
-                    {order.itemsSnapshot?.map((item, idx) => (
-                        <div key={idx} className="flex gap-4 items-start">
-                             {/* Cantidad */}
-                            <span className="bg-slate-800 text-white font-black text-lg min-w-[36px] h-[36px] flex items-center justify-center rounded-lg border border-slate-700 shadow-inner">
-                                {item.qty}
-                            </span>
-                            <div className="leading-snug pt-0.5">
-                                <p className="font-bold text-lg text-slate-200">{item.name}</p>
-                                {item.details?.length > 0 && (
-                                    <p className="text-sm text-orange-400/80 italic mt-1 font-medium">
-                                        + {item.details.join(", ")}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                    {order.orderNotes && (
-                        <div className="bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-xl mt-4">
-                            <p className="text-yellow-500 text-xs font-bold uppercase mb-1 flex items-center gap-1"><AlertTriangle size={12}/> Nota de Cocina</p>
-                            <p className="text-yellow-200 text-sm font-medium italic leading-relaxed">"{order.orderNotes}"</p>
-                        </div>
-                    )}
+              <article
+                key={order.id}
+                className="bg-slate-900 rounded-2xl border border-slate-800 px-3 py-2.5 text-xs flex flex-col gap-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-100">
+                      #{order.number ?? "—"}
+                    </span>
+                    <span className="font-semibold text-slate-50">
+                      {order.customerName || "Mostrador"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                    <Clock size={12} />
+                    {minutes != null ? `${minutes} min` : "—"}
+                  </div>
                 </div>
 
-                {/* Action Bar */}
-                <div className="p-3 bg-slate-900 border-t border-slate-800">
-                    <button 
-                        onClick={() => handleStatusChange(order)}
-                        className={`w-full py-4 rounded-xl font-bold text-lg uppercase tracking-widest shadow-lg transform active:scale-95 transition-all flex justify-center items-center gap-3
-                            ${order.status === STATUS.NEW ? 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700' : 
-                              order.status === STATUS.PROCESS ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/40' :
-                              'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'}
-                        `}
+                <div className="border-t border-slate-800 pt-2 space-y-1 max-h-24 overflow-y-auto">
+                  {items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex justify-between gap-2 text-[11px] text-slate-200"
                     >
-                        {order.status === STATUS.NEW && <><Flame size={20} /> Cocinar</>}
-                        {order.status === STATUS.PROCESS && <><CheckCircle size={20} /> Listo</>}
-                        {order.status === STATUS.READY && <><PackageCheck size={20} /> Despachar</>}
-                    </button>
+                      <span className="truncate">
+                        {item.qty}× {item.name}
+                      </span>
+                      {item.details && item.details.length > 0 && (
+                        <span className="text-[9px] text-slate-400 truncate">
+                          {item.details.join(" • ")}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-            </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-mono font-bold text-slate-100 text-[11px]">
+                    ${Number(order.total || 0).toFixed(2)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onAdvance(order)}
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-sm ${colorClasses.button}`}
+                  >
+                    {title === "Listas" ? (
+                      <>
+                        <PackageCheck size={13} />
+                        Despachar
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={13} />
+                        Avanzar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </article>
             );
-        })}
+          })
+        )}
       </div>
-    </div>
+    </section>
   );
 }
