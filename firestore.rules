@@ -2,16 +2,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function userPath() {
+    // --------- HELPERS DE USUARIO / ROLES ---------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath() {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
     function userExists() {
-      return exists(userPath());
+      return isSignedIn() && exists(userDocPath());
     }
 
     function userRole() {
-      return userExists() ? get(userPath()).data.role : null;
+      return userExists() ? get(userDocPath()).data.role : null;
     }
 
     function isAdmin() {
@@ -26,60 +32,126 @@ service cloud.firestore {
       return userRole() == "cocina";
     }
 
-    // ---------------- USERS ----------------
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+    function isStaff() {
+      return isAdmin() || isRecepcion() || isCocina();
     }
 
-    // ---------------- ORDERS ----------------
+    function isValidOrderStatus(status) {
+      return status in ["nuevo", "proceso", "listo", "despachado"];
+    }
+
+    // --------- USERS ---------
+    match /users/{userId} {
+      // Cada uno puede ver solo su doc
+      allow read: if isSignedIn() && request.auth.uid == userId;
+
+      // Admin ve y modifica todo
+      allow read, write: if isAdmin();
+    }
+
+    // --------- ORDERS ---------
     match /orders/{orderId} {
 
-      // Crear orden (solo recepción)
-      allow create: if isRecepcion()
+      // Lectura: cualquier empleado
+      allow read: if isStaff();
+
+      // Crear orden: recepción o admin
+      allow create: if (isRecepcion() || isAdmin())
+        && request.resource.data.total is number
         && request.resource.data.total > 0
+        && request.resource.data.items is list
         && request.resource.data.items.size() > 0
-        && request.resource.data.status == "nueva";
+        && request.resource.data.status is string
+        && isValidOrderStatus(request.resource.data.status);
 
-      // Cocina solo puede cambiar status
+      // Actualizar desde cocina: SOLO status
       allow update: if isCocina()
-        && request.resource.data.status in ["preparando", "lista", "entregada"]
-        && request.resource.data.diff(resource.data).keys().hasOnly(["status"]);
+        && request.resource.data.status is string
+        && isValidOrderStatus(request.resource.data.status)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"]);
 
-      // Recepción no puede editar órdenes viejas
+      // Actualizar desde recepción: solo mientras la orden está "nuevo" y SOLO status
       allow update: if isRecepcion()
-        && resource.data.status == "nueva"
-        && request.resource.data.diff(resource.data).keys().hasOnly(["status"]);
+        && resource.data.status == "nuevo"
+        && request.resource.data.status is string
+        && isValidOrderStatus(request.resource.data.status)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"]);
 
-      // Admin sí puede todo
-      allow read, update, delete: if isAdmin();
-
-      // Lectura general para cocina y recepción
-      allow read: if isRecepcion() || isCocina();
+      // Admin: control total sobre órdenes
+      allow create, read, update, delete: if isAdmin();
     }
 
-    // ---------------- MENU ----------------
+    // --------- ARCHIVED ORDERS ---------
+    match /archived_orders/{orderId} {
+      allow read, write: if isAdmin();
+    }
+
+    // --------- MENU ITEMS ---------
     match /menuItems/{id} {
-      allow read: if request.auth != null;
+      // Cualquier empleado autenticado puede leer el menú
+      allow read: if isSignedIn();
+      // Solo admin crea/edita productos
       allow write: if isAdmin();
     }
 
-    // ---------------- CONFIG ----------------
+    // --------- CONFIGURACIÓN GLOBAL ---------
     match /configuration/{id} {
-      allow read: if request.auth != null;
+      // Todos los empleados leen config (precios, reglas)
+      allow read: if isSignedIn();
+      // Solo admin cambia reglas globales
       allow write: if isAdmin();
     }
 
-    // ---------------- STATS ----------------
+    // --------- STATS DIARIAS ---------
     match /daily_stats/{id} {
+      // Solo admin ve reportes crudos
       allow read: if isAdmin();
+      // Escritura desde recepción (al crear orden) o admin
+      allow write: if isRecepcion() || isAdmin();
+    }
+
+    // --------- COUNTERS (correlativos de órdenes) ---------
+    match /counters/{id} {
+      // Todos los roles pueden leer (por si necesitás mostrar correlativo)
+      allow read: if isStaff();
+      // Escritura: quien genera números (recepción) y admin
+      allow write: if isRecepcion() || isAdmin();
+    }
+
+    // --------- INVENTARIO DETALLADO ---------
+    // Ingredientes
+    match /ingredients/{id} {
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
 
-    // ---------------- COUNTERS ----------------
-    match /counters/{id} {
-      allow read: if isAdmin() || isRecepcion() || isCocina();
+    // Complementos / Sides
+    match /sides/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Bebidas
+    match /drinks/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Tipos de papas
+    match /potatoes/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // Salsas
+    match /sauces/{id} {
+      allow read: if isStaff();
+      allow write: if isAdmin();
+    }
+
+    // --------- COMBOS (si decides usar colección dedicada) ---------
+    match /combos/{id} {
+      allow read: if isStaff();
       allow write: if isAdmin();
     }
   }

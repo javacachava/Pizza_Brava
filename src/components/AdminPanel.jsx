@@ -208,20 +208,24 @@ export default function AdminPanel({ onLogout }) {
   // ---- Firestore helpers ----
 
   const fetchProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      const snap = await getDocs(collection(db, "menuItems"));
-      const list = snap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-      setProducts(list);
-    } catch (err) {
-      console.error("Error cargando productos:", err);
-      toast.error("No se pudieron cargar los productos");
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
+  setLoadingProducts(true);
+
+  const snap = await getDocs(collection(db, "menuItems"));
+
+  const items = snap.docs
+    .map((docSnap) => {
+      const data = docSnap.data();
+      return {
+        ...data,
+        id: docSnap.id, // SIEMPRE usamos el ID REAL DE FIRESTORE
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  setProducts(items);
+  setLoadingProducts(false);
+};
+
 
   const handleOpenForm = (product) => {
     if (product) {
@@ -245,47 +249,39 @@ export default function AdminPanel({ onLogout }) {
   };
 
   const handleSaveProduct = async () => {
-    const name = formData.name.trim();
-    if (!name) {
-      toast.error("El producto debe tener nombre");
-      return;
-    }
+  if (!formData.name?.trim()) {
+    return toast.error("Nombre obligatorio");
+  }
 
-    const price = Number(formData.price);
-    if (Number.isNaN(price) || price < 0) {
-      toast.error("Precio inválido");
-      return;
-    }
+  // Nunca subimos el id a Firestore
+  const { id, ...rest } = formData;
 
-    const stock =
-      formData.stock === "" ? null : Number.parseInt(formData.stock, 10);
-
-    const payload = {
-      name,
-      price,
-      mainCategory: formData.mainCategory || "Pizzas",
-      station: formData.station || ROLES.KITCHEN,
-      isActive: !!formData.isActive
-    };
-
-    if (stock !== null && !Number.isNaN(stock)) {
-      payload.stock = stock;
-    }
-
-    try {
-      if (formData.id) {
-        await updateDoc(doc(db, "menuItems", formData.id), payload);
-      } else {
-        await addDoc(collection(db, "menuItems"), payload);
-      }
-      toast.success("Producto guardado");
-      setIsEditing(false);
-      fetchProducts();
-    } catch (err) {
-      console.error("Error guardando producto:", err);
-      toast.error("No se pudo guardar el producto");
-    }
+  const pData = {
+    ...rest,
+    price: parseFloat(rest.price || 0),
+    stock:
+      rest.stock !== "" && rest.stock != null
+        ? parseInt(rest.stock, 10)
+        : null,
   };
+
+  try {
+    if (id) {
+      // EDITAR
+      await updateDoc(doc(db, "menuItems", id), pData);
+    } else {
+      // CREAR
+      await addDoc(collection(db, "menuItems"), pData);
+    }
+
+    toast.success("Producto guardado");
+    setIsEditing(false);
+    fetchProducts();
+  } catch (e) {
+    console.error(e);
+    toast.error(e.message || "Error al guardar el producto");
+  }
+};
 
   const handleDeleteProduct = async (product) => {
     const ok = window.confirm(`¿Eliminar "${product.name}" del menú?`);
