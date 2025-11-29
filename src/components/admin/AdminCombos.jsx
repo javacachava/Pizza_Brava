@@ -1,3 +1,4 @@
+// src/components/admin/AdminCombos.jsx
 import React, { useEffect, useState } from "react";
 import {
   collection,
@@ -41,24 +42,19 @@ export default function AdminCombos() {
   const [editingCombo, setEditingCombo] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // =========================
-  // Carga inicial
-  // =========================
   useEffect(() => {
     const loadAll = async () => {
       try {
         setLoading(true);
 
-        // Combos guardados en menuItems con type === "combo"
         const combosSnap = await getDocs(
           query(collection(db, "menuItems"), where("type", "==", "combo"))
         );
         const loadedCombos = combosSnap.docs
           .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => a.name.localeCompare(b.name));
+          .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         setCombos(loadedCombos);
 
-        // Complementos (sides)
         const sidesSnap = await getDocs(collection(db, "sides"));
         setSides(
           sidesSnap.docs
@@ -66,7 +62,6 @@ export default function AdminCombos() {
             .sort((a, b) => (a.name || "").localeCompare(b.name || ""))
         );
 
-        // Bebidas
         const drinksSnap = await getDocs(collection(db, "drinks"));
         setDrinks(
           drinksSnap.docs
@@ -84,9 +79,6 @@ export default function AdminCombos() {
     loadAll();
   }, []);
 
-  // =========================
-  // Helpers de slots
-  // =========================
   const handleAddSlot = () => {
     if (!editingCombo) return;
     const newSlot = {
@@ -96,49 +88,52 @@ export default function AdminCombos() {
       includedPrice: 0,
       allowedOptions: [],
     };
-    setEditingCombo({
-      ...editingCombo,
-      slots: [...(editingCombo.slots || []), newSlot],
-    });
+    setEditingCombo((prev) => ({
+      ...prev,
+      slots: [...(prev.slots || []), newSlot],
+    }));
   };
 
   const handleUpdateSlot = (index, patch) => {
     if (!editingCombo) return;
-    const slots = [...(editingCombo.slots || [])];
-    slots[index] = { ...slots[index], ...patch };
-    setEditingCombo({ ...editingCombo, slots });
+    setEditingCombo((prev) => {
+      const newSlots = [...(prev.slots || [])];
+      newSlots[index] = { ...newSlots[index], ...patch };
+      return { ...prev, slots: newSlots };
+    });
   };
 
   const handleRemoveSlot = (index) => {
     if (!editingCombo) return;
-    const slots = [...(editingCombo.slots || [])];
-    slots.splice(index, 1);
-    setEditingCombo({ ...editingCombo, slots });
+    setEditingCombo((prev) => {
+      const newSlots = [...(prev.slots || [])];
+      newSlots.splice(index, 1);
+      return { ...prev, slots: newSlots };
+    });
   };
 
   const handleToggleAllowedOption = (slotIndex, optionId) => {
     if (!editingCombo) return;
-    const slots = [...(editingCombo.slots || [])];
-    const slot = { ...slots[slotIndex] };
-    const current = Array.isArray(slot.allowedOptions)
-      ? [...slot.allowedOptions]
-      : [];
+    setEditingCombo((prev) => {
+      const newSlots = [...(prev.slots || [])];
+      const slot = { ...newSlots[slotIndex] };
+      const current = Array.isArray(slot.allowedOptions)
+        ? [...slot.allowedOptions]
+        : [];
 
-    const existsIndex = current.indexOf(optionId);
-    if (existsIndex >= 0) {
-      current.splice(existsIndex, 1);
-    } else {
-      current.push(optionId);
-    }
+      const existsIndex = current.indexOf(optionId);
+      if (existsIndex >= 0) {
+        current.splice(existsIndex, 1);
+      } else {
+        current.push(optionId);
+      }
 
-    slot.allowedOptions = current;
-    slots[slotIndex] = slot;
-    setEditingCombo({ ...editingCombo, slots });
+      slot.allowedOptions = current;
+      newSlots[slotIndex] = slot;
+      return { ...prev, slots: newSlots };
+    });
   };
 
-  // =========================
-  // CRUD Combos
-  // =========================
   const startNewCombo = () => {
     setEditingCombo(createEmptyCombo());
   };
@@ -172,16 +167,6 @@ export default function AdminCombos() {
       return;
     }
 
-    if (!editingCombo.slots || editingCombo.slots.length === 0) {
-      if (
-        !window.confirm(
-          "Este combo no tiene componentes configurados. ¿Guardar de todos modos?"
-        )
-      ) {
-        return;
-      }
-    }
-
     const normalizedSlots = (editingCombo.slots || []).map((slot, index) => ({
       id: slot.id || `slot_${index + 1}`,
       label: slot.label?.trim() || `Componente ${index + 1}`,
@@ -201,7 +186,7 @@ export default function AdminCombos() {
       isCombo: true,
       isActive: editingCombo.isActive !== false,
       basePrice: basePriceNum,
-      price: basePriceNum, // para compatibilidad con la UI de menú actual
+      price: basePriceNum,
       slots: normalizedSlots,
     };
 
@@ -211,9 +196,8 @@ export default function AdminCombos() {
         await updateDoc(doc(db, "menuItems", editingCombo.id), payload);
         toast.success("Combo actualizado");
       } else {
-        const ref = await addDoc(collection(db, "menuItems"), payload);
+        await addDoc(collection(db, "menuItems"), payload);
         toast.success("Combo creado");
-        payload.id = ref.id;
       }
 
       // Recargar lista
@@ -222,7 +206,7 @@ export default function AdminCombos() {
       );
       const updated = combosSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       setCombos(updated);
 
       setEditingCombo(null);
@@ -234,9 +218,6 @@ export default function AdminCombos() {
     }
   };
 
-  // =========================
-  // Render
-  // =========================
   if (loading) {
     return (
       <div className="py-10 text-center text-slate-400">
@@ -247,7 +228,6 @@ export default function AdminCombos() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-xl bg-orange-100 text-orange-600">
@@ -272,12 +252,10 @@ export default function AdminCombos() {
         </button>
       </div>
 
-      {/* Lista de combos */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         {combos.length === 0 ? (
           <div className="p-6 text-sm text-slate-500">
-            No hay combos configurados todavía. Crea el primero con el botón
-            "Nuevo Combo".
+            No hay combos configurados todavía.
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -335,7 +313,6 @@ export default function AdminCombos() {
         )}
       </div>
 
-      {/* Editor modal */}
       {editingCombo && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -357,7 +334,6 @@ export default function AdminCombos() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {/* Datos básicos */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">
@@ -367,10 +343,10 @@ export default function AdminCombos() {
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/80"
                     value={editingCombo.name}
                     onChange={(e) =>
-                      setEditingCombo({
-                        ...editingCombo,
+                      setEditingCombo((prev) => ({
+                        ...prev,
                         name: e.target.value,
-                      })
+                      }))
                     }
                     placeholder="Ej: Combo Familiar Pizza + Bebidas"
                   />
@@ -384,10 +360,10 @@ export default function AdminCombos() {
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/80"
                     value={editingCombo.basePrice}
                     onChange={(e) =>
-                      setEditingCombo({
-                        ...editingCombo,
+                      setEditingCombo((prev) => ({
+                        ...prev,
                         basePrice: e.target.value,
-                      })
+                      }))
                     }
                     min="0"
                     step="0.01"
@@ -404,16 +380,15 @@ export default function AdminCombos() {
                   rows={2}
                   value={editingCombo.description}
                   onChange={(e) =>
-                    setEditingCombo({
-                      ...editingCombo,
+                    setEditingCombo((prev) => ({
+                      ...prev,
                       description: e.target.value,
-                    })
+                    }))
                   }
                   placeholder="Texto que ayude a la recepción a entender qué incluye este combo."
                 />
               </div>
 
-              {/* Slots */}
               <div className="flex items-center justify-between">
                 <h4 className="text-sm font-bold text-slate-700">
                   Componentes del combo
@@ -429,12 +404,12 @@ export default function AdminCombos() {
 
               {(!editingCombo.slots || editingCombo.slots.length === 0) && (
                 <p className="text-xs text-slate-400">
-                  Añade al menos un componente: pizzas, complementos o bebidas.
+                  Añade al menos un componente.
                 </p>
               )}
 
-              <div className="space-y-3">
-                {(editingCombo.slots || []).map((slot, index) => {
+             <div className="space-y-3">
+                {(editingCombo.slots || []).map((slot, index) => { // ✅ Index ya existía
                   const allowedList =
                     slot.type === "side"
                       ? sides
@@ -448,14 +423,14 @@ export default function AdminCombos() {
 
                   return (
                     <div
-                      key={slot.id || index}
+                      key={slot.id || `slot-${index}`} // ✅ Key segura (fallback simple)
                       className="border border-slate-200 rounded-2xl p-4 bg-slate-50"
                     >
                       <div className="flex justify-between items-start gap-2 mb-3">
                         <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
                           <div className="space-y-1">
                             <label className="text-[11px] font-bold text-slate-500 uppercase">
-                              Etiqueta visible
+                              Etiqueta
                             </label>
                             <input
                               className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/80"
@@ -465,12 +440,11 @@ export default function AdminCombos() {
                                   label: e.target.value,
                                 })
                               }
-                              placeholder="Ej: Pizza grande, Bebida, Complemento"
                             />
                           </div>
                           <div className="space-y-1">
                             <label className="text-[11px] font-bold text-slate-500 uppercase">
-                              Tipo de componente
+                              Tipo
                             </label>
                             <select
                               className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/80"
@@ -478,7 +452,6 @@ export default function AdminCombos() {
                               onChange={(e) =>
                                 handleUpdateSlot(index, {
                                   type: e.target.value,
-                                  // al cambiar de tipo, los allowedOptions pueden no aplicar
                                   allowedOptions: [],
                                 })
                               }
@@ -506,10 +479,6 @@ export default function AdminCombos() {
                               min="0"
                               step="0.01"
                             />
-                            <p className="text-[10px] text-slate-500 mt-1">
-                              Si el cliente cambia a algo más caro, se cobrará
-                              la diferencia contra este valor.
-                            </p>
                           </div>
                         </div>
 
@@ -521,65 +490,39 @@ export default function AdminCombos() {
                         </button>
                       </div>
 
-                      {/* Opciones permitidas */}
-                      {slot.type === "side" || slot.type === "drink" ? (
+                      {(slot.type === "side" || slot.type === "drink") && (
                         <div className="mt-2">
                           <p className="text-[11px] font-bold text-slate-500 uppercase mb-1">
                             Opciones permitidas
                           </p>
-                          {allowedList.length === 0 ? (
-                            <p className="text-xs text-slate-400">
-                              No hay elementos configurados para este tipo.
-                            </p>
-                          ) : (
-                            <div className="flex flex-wrap gap-2">
-                              {allowedList.map((opt) => {
-                                const active = allowedIds.includes(opt.id);
-                                return (
-                                  <button
-                                    key={opt.id}
-                                    type="button"
-                                    onClick={() =>
-                                      handleToggleAllowedOption(
-                                        index,
-                                        opt.id
-                                      )
-                                    }
-                                    className={`px-2.5 py-1 rounded-full text-[11px] border transition-all ${
-                                      active
-                                        ? "bg-orange-500 text-white border-orange-500"
-                                        : "bg-white text-slate-600 border-slate-200 hover:border-orange-400 hover:text-orange-600"
-                                    }`}
-                                  >
-                                    {opt.name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            Si no seleccionas ninguna, el combo permitirá{" "}
-                            <span className="font-semibold">
-                              cualquier {slot.type === "side"
-                                ? "complemento"
-                                : "bebida"}
-                            </span>{" "}
-                            activo.
-                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {allowedList.map((opt) => {
+                              const active = allowedIds.includes(opt.id);
+                              return (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleAllowedOption(index, opt.id)
+                                  }
+                                  className={`px-2.5 py-1 rounded-full text-[11px] border transition-all ${
+                                    active
+                                      ? "bg-orange-500 text-white border-orange-500"
+                                      : "bg-white text-slate-600 border-slate-200 hover:border-orange-400"
+                                  }`}
+                                >
+                                  {opt.name}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-[11px] text-slate-500 mt-1">
-                          Para las pizzas clásicas, las opciones se configuran
-                          al momento de tomar la orden (ingredientes, etc.). No
-                          necesitas limitar aquí.
-                        </p>
                       )}
                     </div>
                   );
                 })}
               </div>
 
-              {/* Estado */}
               <div className="pt-1">
                 <label className="inline-flex items-center gap-2 text-xs text-slate-600">
                   <input
@@ -587,13 +530,13 @@ export default function AdminCombos() {
                     className="rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                     checked={editingCombo.isActive !== false}
                     onChange={(e) =>
-                      setEditingCombo({
-                        ...editingCombo,
+                      setEditingCombo((prev) => ({
+                        ...prev,
                         isActive: e.target.checked,
-                      })
+                      }))
                     }
                   />
-                  <span>Combo activo (visible en recepción)</span>
+                  <span>Combo activo</span>
                 </label>
               </div>
             </div>

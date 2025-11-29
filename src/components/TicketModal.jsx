@@ -122,11 +122,11 @@ export default function TicketModal({
               )}
             </div>
 
-            <div className="border-t border-slate-400 pt-2 mt-2 text-xs">
+           <div className="border-t border-slate-400 pt-2 mt-2 text-xs">
               {ticketItems && ticketItems.length > 0 ? (
-                ticketItems.map((item, idx) => (
+                ticketItems.map((item, idx) => ( // ✅ idx ya existía
                   <div
-                    key={item.cartItemId || item.id || idx}
+                    key={item.cartItemId || item.id || item._signature || `${item.name}-${idx}`} // ✅ Key segura
                     className="mb-2"
                   >
                     <div className="flex justify-between">

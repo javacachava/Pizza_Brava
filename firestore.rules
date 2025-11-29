@@ -36,26 +36,22 @@ service cloud.firestore {
       return isAdmin() || isRecepcion() || isCocina();
     }
 
+    // mismos strings que el frontend (STATUS)
     function isValidOrderStatus(status) {
       return status in ["nuevo", "proceso", "listo", "despachado"];
     }
 
     // --------- USERS ---------
     match /users/{userId} {
-      // Cada uno puede ver solo su doc
       allow read: if isSignedIn() && request.auth.uid == userId;
-
-      // Admin ve y modifica todo
       allow read, write: if isAdmin();
     }
 
     // --------- ORDERS ---------
     match /orders/{orderId} {
-
-      // Lectura: cualquier empleado
+      // doc principal de la orden
       allow read: if isStaff();
 
-      // Crear orden: recepción o admin
       allow create: if (isRecepcion() || isAdmin())
         && request.resource.data.total is number
         && request.resource.data.total > 0
@@ -64,21 +60,28 @@ service cloud.firestore {
         && request.resource.data.status is string
         && isValidOrderStatus(request.resource.data.status);
 
-      // Actualizar desde cocina: SOLO status
       allow update: if isCocina()
         && request.resource.data.status is string
         && isValidOrderStatus(request.resource.data.status)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"]);
 
-      // Actualizar desde recepción: solo mientras la orden está "nuevo" y SOLO status
       allow update: if isRecepcion()
         && resource.data.status == "nuevo"
         && request.resource.data.status is string
         && isValidOrderStatus(request.resource.data.status)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"]);
 
-      // Admin: control total sobre órdenes
+      // admin puede hacer de todo sobre la orden
       allow create, read, update, delete: if isAdmin();
+
+      // --------- SUBCOLECCIÓN: items de la orden ---------
+      match /items/{itemId} {
+        // cocina / recepción / admin pueden ver los items
+        allow read: if isStaff();
+
+        // recepción crea los items cuando manda la orden; admin también puede
+        allow create, update, delete: if isRecepcion() || isAdmin();
+      }
     }
 
     // --------- ARCHIVED ORDERS ---------
@@ -88,68 +91,51 @@ service cloud.firestore {
 
     // --------- MENU ITEMS ---------
     match /menuItems/{id} {
-      // Cualquier empleado autenticado puede leer el menú
       allow read: if isSignedIn();
-      // Solo admin crea/edita productos
       allow write: if isAdmin();
     }
 
     // --------- CONFIGURACIÓN GLOBAL ---------
     match /configuration/{id} {
-      // Todos los empleados leen config (precios, reglas)
       allow read: if isSignedIn();
-      // Solo admin cambia reglas globales
       allow write: if isAdmin();
     }
 
     // --------- STATS DIARIAS ---------
     match /daily_stats/{id} {
-      // Solo admin ve reportes crudos
       allow read: if isAdmin();
-      // Escritura desde recepción (al crear orden) o admin
+      // saveOrder (recepción) escribe aquí
       allow write: if isRecepcion() || isAdmin();
     }
 
-    // --------- COUNTERS (correlativos de órdenes) ---------
+    // --------- COUNTERS ---------
     match /counters/{id} {
-      // Todos los roles pueden leer (por si necesitás mostrar correlativo)
       allow read: if isStaff();
-      // Escritura: quien genera números (recepción) y admin
+      // generateOrderNumber (recepción) actualiza el contador
       allow write: if isRecepcion() || isAdmin();
     }
 
     // --------- INVENTARIO DETALLADO ---------
-    // Ingredientes
     match /ingredients/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
-
-    // Complementos / Sides
     match /sides/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
-
-    // Bebidas
     match /drinks/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
-
-    // Tipos de papas
     match /potatoes/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
-
-    // Salsas
     match /sauces/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();
     }
-
-    // --------- COMBOS (si decides usar colección dedicada) ---------
     match /combos/{id} {
       allow read: if isStaff();
       allow write: if isAdmin();

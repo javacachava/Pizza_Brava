@@ -112,7 +112,7 @@ export default function AdminPanel({ onLogout }) {
   useEffect(() => {
     const checkOldData = async () => {
       try {
-        if (sessionStorage.getItem("checked_archive")) return;
+        if (typeof window !== "undefined" && window.sessionStorage.getItem("checked_archive")) return;
 
         const limitDate = new Date();
         limitDate.setDate(limitDate.getDate() - 90);
@@ -134,7 +134,9 @@ export default function AdminPanel({ onLogout }) {
           }
         }
 
-        sessionStorage.setItem("checked_archive", "true");
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem("checked_archive", "true");
+        }
       } catch (err) {
         console.error("Error en mantenimiento:", err);
       }
@@ -208,24 +210,26 @@ export default function AdminPanel({ onLogout }) {
   // ---- Firestore helpers ----
 
   const fetchProducts = async () => {
-  setLoadingProducts(true);
+    setLoadingProducts(true);
+    try {
+      const snap = await getDocs(collection(db, "menuItems"));
+      
+      const items = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
 
-  const snap = await getDocs(collection(db, "menuItems"));
+      // Ordenar alfabéticamente
+      items.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
-  const items = snap.docs
-    .map((docSnap) => {
-      const data = docSnap.data();
-      return {
-        ...data,
-        id: docSnap.id, // SIEMPRE usamos el ID REAL DE FIRESTORE
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  setProducts(items);
-  setLoadingProducts(false);
-};
-
+      setProducts(items);
+    } catch (error) {
+      console.error("Error cargando productos:", error);
+      toast.error("Error cargando el menú");
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   const handleOpenForm = (product) => {
     if (product) {
@@ -249,39 +253,39 @@ export default function AdminPanel({ onLogout }) {
   };
 
   const handleSaveProduct = async () => {
-  if (!formData.name?.trim()) {
-    return toast.error("Nombre obligatorio");
-  }
-
-  // Nunca subimos el id a Firestore
-  const { id, ...rest } = formData;
-
-  const pData = {
-    ...rest,
-    price: parseFloat(rest.price || 0),
-    stock:
-      rest.stock !== "" && rest.stock != null
-        ? parseInt(rest.stock, 10)
-        : null,
-  };
-
-  try {
-    if (id) {
-      // EDITAR
-      await updateDoc(doc(db, "menuItems", id), pData);
-    } else {
-      // CREAR
-      await addDoc(collection(db, "menuItems"), pData);
+    if (!formData.name?.trim()) {
+      return toast.error("Nombre obligatorio");
     }
 
-    toast.success("Producto guardado");
-    setIsEditing(false);
-    fetchProducts();
-  } catch (e) {
-    console.error(e);
-    toast.error(e.message || "Error al guardar el producto");
-  }
-};
+    // Extraemos ID para no guardarlo dentro del doc
+    const { id, ...rest } = formData;
+
+    const pData = {
+      ...rest,
+      price: parseFloat(rest.price || 0),
+      stock:
+        rest.stock !== "" && rest.stock != null
+          ? parseInt(rest.stock, 10)
+          : null,
+    };
+
+    try {
+      if (id) {
+        // EDITAR
+        await updateDoc(doc(db, "menuItems", id), pData);
+      } else {
+        // CREAR
+        await addDoc(collection(db, "menuItems"), pData);
+      }
+
+      toast.success("Producto guardado");
+      setIsEditing(false);
+      fetchProducts();
+    } catch (e) {
+      console.error(e);
+      toast.error(e.message || "Error al guardar el producto");
+    }
+  };
 
   const handleDeleteProduct = async (product) => {
     const ok = window.confirm(`¿Eliminar "${product.name}" del menú?`);
@@ -401,10 +405,15 @@ export default function AdminPanel({ onLogout }) {
         sides,
         rules: {
           ingredientPrice,
+          ingredient_extra_price: ingredientPrice, // Compatibilidad doble
           sizes: {
             Personal: { label: "Personal", priceModifier: 0 },
             Grande: { label: "Gigante", priceModifier: sizeDiff }
           }
+        },
+        prices: { // Compatibilidad con lógica vieja
+          extraIngredient: ingredientPrice,
+          sizeDifference: sizeDiff
         }
       });
 
@@ -544,7 +553,7 @@ export default function AdminPanel({ onLogout }) {
                         </span>
                       </td>
                       <td className="p-4 font-mono font-bold">
-                        {typeof p.price === "number" ? `$${p.price}` : "-"}
+                        {typeof p.price === "number" ? `$${p.price.toFixed(2)}` : "-"}
                       </td>
                       <td className="p-4 flex justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button

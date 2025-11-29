@@ -126,8 +126,9 @@ export default function MenuPanel({
             </p>
           </div>
         ) : (
+          // ...
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map((product) => {
+            {filteredProducts.map((product, index) => { // ✅ Index agregado
               const isCombo = product.isCombo === true;
               const isClassic = product.isClassic === true;
               const price =
@@ -137,7 +138,7 @@ export default function MenuPanel({
 
               return (
                 <button
-                  key={product.id}
+                  key={product.id || product._signature || `${product.name}-${index}`} // ✅ Key segura
                   type="button"
                   onClick={() => onProductClick(product)}
                   className="group relative bg-slate-900/80 rounded-2xl border border-slate-800 hover:border-orange-500/60 hover:bg-slate-900 shadow-sm hover:shadow-orange-500/20 hover:shadow-lg transition-all duration-150 text-left flex flex-col overflow-hidden"

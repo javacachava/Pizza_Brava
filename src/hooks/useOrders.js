@@ -1,3 +1,4 @@
+// src/hooks/useOrders.js
 import { useState } from "react";
 import {
   doc,
@@ -19,7 +20,7 @@ import { ROLES, STATUS, SYNC_STATUS } from "../constants/types";
 export function useOrders() {
   const [loading, setLoading] = useState(false);
 
-  // Genera número correlativo por día (o "PENDIENTE" si falla)
+  // Genera número correlativo por día
   const generateOrderNumber = async () => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       return { number: "PENDIENTE", isOffline: true };
@@ -51,26 +52,25 @@ export function useOrders() {
       return { number, isOffline: false };
     } catch (e) {
       console.error("Error generando correlativo:", e);
-      // Si falla (permisos / red), seguimos operando con número pendiente
       return { number: "PENDIENTE", isOffline: true };
     }
   };
 
   const buildItemsSnapshot = (cartItems = []) =>
     cartItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      qty: item.qty,
+      id: item.id || "unknown",
+      name: item.name || "Sin nombre",
+      price: Number(item.price || 0),
+      qty: Number(item.qty || 1),
       mainCategory: item.mainCategory || "Otros",
-      total: Number((item.price * item.qty).toFixed(2)),
-      details: item.details || [], // ingredientes / extras / breakdown combos
+      total: Number((Number(item.price || 0) * Number(item.qty || 1)).toFixed(2)),
+      details: Array.isArray(item.details) ? item.details : [],
     }));
 
   const saveOrder = async ({ orderData, cartItems }) => {
     if (!cartItems || cartItems.length === 0) {
       toast.error("El carrito está vacío");
-      return;
+      return null;
     }
 
     setLoading(true);
@@ -99,7 +99,7 @@ export function useOrders() {
         total: normalizedTotal,
         subtotal: normalizedSubtotal,
         itemsSnapshot,
-        // Alias para reglas de seguridad que usan request.resource.data.items
+        // Alias para compatibilidad con reglas de seguridad
         items: itemsSnapshot,
         createdAt: serverTimestamp(),
         createdBy: orderData?.createdBy || ROLES.RECEPTION,
@@ -110,7 +110,7 @@ export function useOrders() {
       // 1) Orden principal
       batch.set(newOrderRef, payload);
 
-      // 2) Subcolección de items (útil para auditoría)
+      // 2) Subcolección de items
       itemsSnapshot.forEach((item) => {
         const itemRef = doc(collection(db, `orders/${newOrderRef.id}/items`));
         batch.set(itemRef, {
@@ -123,7 +123,7 @@ export function useOrders() {
         });
       });
 
-      // 3) Estadísticas diarias (best effort, solo si no estamos en modo "offline/fallo")
+      // 3) Estadísticas diarias
       if (!isOffline) {
         const todayStr = new Date().toISOString().split("T")[0];
         const statsRef = doc(db, "daily_stats", todayStr);

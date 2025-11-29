@@ -105,13 +105,13 @@ export default function CartPanel({
             </p>
           </div>
         ) : (
-          cart.map((item) => {
+          cart.map((item, index) => { // ✅ Index agregado
             const lineTotal = Number(item.price || 0) * (item.qty || 0);
             const details = item.details || [];
 
             return (
               <div
-                key={item.cartItemId || item.id}
+                key={item.cartItemId || item.id || item._signature || `${item.name}-${index}`} // ✅ Key segura
                 className="relative bg-slate-900 rounded-2xl border border-slate-700/50 hover:border-orange-500/40 transition-all p-3 flex gap-3"
               >
                 {/* Controles de cantidad */}

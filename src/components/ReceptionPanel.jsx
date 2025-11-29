@@ -1,3 +1,4 @@
+// src/components/ReceptionPanel.jsx
 import React, { useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -58,40 +59,18 @@ export default function ReceptionPanel({ onLogout }) {
   useEffect(() => {
     const unsubs = [];
 
-    // Ingredientes (para pizzas clásicas / combos)
-    unsubs.push(
-      onSnapshot(collection(db, "ingredients"), (snap) => {
-        setIngredients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
-    );
+    const subscribe = (colName, setter) => {
+      const unsub = onSnapshot(collection(db, colName), (snap) => {
+        setter(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+      unsubs.push(unsub);
+    };
 
-    // Complementos / Sides
-    unsubs.push(
-      onSnapshot(collection(db, "sides"), (snap) => {
-        setSides(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
-    );
-
-    // Bebidas (si decides tener colección aparte)
-    unsubs.push(
-      onSnapshot(collection(db, "drinks"), (snap) => {
-        setDrinksCatalog(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
-    );
-
-    // Tipos de papas
-    unsubs.push(
-      onSnapshot(collection(db, "potatoes"), (snap) => {
-        setPotatoes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
-    );
-
-    // Salsas
-    unsubs.push(
-      onSnapshot(collection(db, "sauces"), (snap) => {
-        setSauces(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      })
-    );
+    subscribe("ingredients", setIngredients);
+    subscribe("sides", setSides);
+    subscribe("drinks", setDrinksCatalog);
+    subscribe("potatoes", setPotatoes);
+    subscribe("sauces", setSauces);
 
     return () => unsubs.forEach((u) => u && u());
   }, []);
@@ -105,14 +84,10 @@ export default function ReceptionPanel({ onLogout }) {
     );
   }
 
-  // Cuando el cajero hace clic en un producto del menú
   const handleProductClick = (product) => {
-    // Ya no tomamos decisiones aquí (combo, pizza, etc.)
-    // Toda la lógica de "qué modal abrir" la maneja ProductDispatcher.
     setSelectedProduct(product);
   };
 
-  // Cuando el cajero llena los datos del cliente en el carrito y da “Continuar”
   const handleCheckout = (formData) => {
     setPendingOrderData(formData);
     setTicketInfo({
@@ -123,7 +98,6 @@ export default function ReceptionPanel({ onLogout }) {
     setShowTicket(true);
   };
 
-  // Confirmar y guardar orden en Firestore desde el Ticket
   const handleConfirmOrder = async () => {
     if (!pendingOrderData || loadingOrder) return;
 
@@ -137,26 +111,26 @@ export default function ReceptionPanel({ onLogout }) {
         customerName: pendingOrderData.customerName || "Cliente Mostrador"
       };
 
-      const { number, id } = await saveOrder({
+      const result = await saveOrder({
         orderData: orderPayload,
         cartItems: cart
       });
 
-      setTicketInfo((prev) => ({
-        ...prev,
-        orderId: id,
-        orderNumber: number
-      }));
-
-      toast.success(`Orden #${number} enviada con éxito`, { id: toastId });
-      clearCart();
+      if (result) {
+        setTicketInfo((prev) => ({
+          ...prev,
+          orderId: result.id,
+          orderNumber: result.number
+        }));
+        toast.success(`Orden #${result.number} enviada con éxito`, { id: toastId });
+        clearCart();
+      }
     } catch (error) {
       console.error("Error guardando orden:", error);
       toast.error("Error al guardar la orden", { id: toastId });
     }
   };
 
-  // Reimprimir una orden desde el historial
   const handleReprint = (order) => {
     setPendingOrderData({
       customerName: order.customerName,
@@ -202,7 +176,7 @@ export default function ReceptionPanel({ onLogout }) {
         />
       </div>
 
-      {/* MODAL DE PRODUCTO (dispatcher inteligente) */}
+      {/* MODAL DE PRODUCTO */}
       {selectedProduct && (
         <ProductDispatcher
           selectedProduct={selectedProduct}

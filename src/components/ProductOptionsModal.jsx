@@ -1,3 +1,4 @@
+// src/components/ProductOptionsModal.jsx
 import React, { useState, useMemo, useEffect } from "react";
 import { X } from "lucide-react";
 
@@ -13,14 +14,15 @@ export default function ProductOptionsModal({
 
   useEffect(() => {
     if (!product) return;
-    const sizes = product.sizes && Object.keys(product.sizes);
-    setSizeKey(sizes && sizes.length > 0 ? sizes[0] : null);
+    const sizes = product.sizes ? Object.keys(product.sizes) : [];
+    setSizeKey(sizes.length > 0 ? sizes[0] : null);
     setSelectedIngredients([]);
   }, [product]);
 
   if (!isOpen || !product) return null;
 
-  const isPizza = (product.mainCategory || "").toLowerCase() === "pizzas";
+  const mainCategory = (product.mainCategory || "").toLowerCase();
+  const isPizza = mainCategory === "pizzas";
   const isClassic =
     product.pizzaType === "Clasica" ||
     product.flags?.isClassic === true ||
@@ -34,16 +36,10 @@ export default function ProductOptionsModal({
   const sizes = product.sizes || null;
   const hasSizes = sizes && Object.keys(sizes).length > 0;
 
-  const includedCount =
-    globalConfig?.global_rules?.classic_pizza_included_ingredients ??
-    globalConfig?.rules?.includedIngredients ??
-    2;
-
-  const extraPricePerIngredient =
-    globalConfig?.global_rules?.ingredient_extra_price ??
-    globalConfig?.prices?.extraIngredient ??
-    0;
-
+  // Resolución de configuración tolerante a versiones
+  const rules = globalConfig?.rules || globalConfig?.global_rules || {};
+  const includedCount = rules.classic_pizza_included_ingredients ?? 2;
+  const extraPricePerIngredient = rules.ingredient_extra_price ?? 0.75;
   const allIngredients = globalConfig?.ingredients || [];
 
   const basePrice = useMemo(() => {
@@ -73,20 +69,15 @@ export default function ProductOptionsModal({
 
     if (isClassic) {
       if (selectedIngredients.length > 0) {
-        details.push(
-          `Ingredientes: ${selectedIngredients.join(", ")}${
-            selectedIngredients.length < includedCount
-              ? ` (se permiten ${includedCount})`
-              : ""
-          }`
-        );
+        const ingText = selectedIngredients.join(", ");
+        details.push(`Ingredientes: ${ingText}`);
       } else {
         details.push(`Ingredientes: (sin seleccionar)`);
       }
 
       if (extraCount > 0 && extraPricePerIngredient > 0) {
         details.push(
-          `Extras: ${extraCount} ingr. extra (+$${(
+          `Extras: ${extraCount} ingr. (+ $${(
             extraCount * extraPricePerIngredient
           ).toFixed(2)})`
         );
@@ -134,7 +125,7 @@ export default function ProductOptionsModal({
 
         {/* Body */}
         <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-950">
-          {/* Columna 1: tamaño (si aplica) */}
+          {/* Columna 1: tamaño */}
           <div className="md:col-span-1 space-y-4">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">
               Tamaño
@@ -184,7 +175,7 @@ export default function ProductOptionsModal({
             </div>
           </div>
 
-          {/* Columna 2 y 3: ingredientes (solo para pizza clásica) */}
+          {/* Columna 2 y 3: ingredientes */}
           <div className="md:col-span-2 space-y-4">
             {isClassic ? (
               <>
@@ -228,8 +219,7 @@ export default function ProductOptionsModal({
                   </div>
                 ) : (
                   <p className="text-xs text-slate-500">
-                    No hay ingredientes configurados en{" "}
-                    <code>configuration/global_options</code>.
+                    No hay ingredientes configurados.
                   </p>
                 )}
 
@@ -239,8 +229,7 @@ export default function ProductOptionsModal({
                     <span className="font-semibold text-slate-200">
                       {extraCount}
                     </span>{" "}
-                    x $
-                    {extraPricePerIngredient.toFixed(2)} ={" "}
+                    x ${extraPricePerIngredient.toFixed(2)} ={" "}
                     <span className="font-semibold text-slate-200">
                       ${extrasCost.toFixed(2)}
                     </span>
@@ -255,13 +244,11 @@ export default function ProductOptionsModal({
               </>
             ) : isSpecialty ? (
               <p className="text-xs text-slate-400">
-                Esta es una pizza de especialidad. Solo se puede cambiar el
-                tamaño. No admite ingredientes personalizados.
+                Esta es una pizza de especialidad. No admite ingredientes personalizados por este medio.
               </p>
             ) : (
               <p className="text-xs text-slate-400">
-                Este producto no requiere configuración adicional. Solo confirma
-                para agregarlo al carrito.
+                Este producto no requiere configuración adicional.
               </p>
             )}
           </div>
