@@ -1,3 +1,4 @@
+// src/components/AdminPanel.jsx
 import React, { useState, useEffect } from "react";
 import {
   LogOut,
@@ -486,6 +487,12 @@ export default function AdminPanel({ onLogout }) {
       const ingredientPrice = Number(prices.extraIngredient) || 0;
       const sizeDiff = Number(prices.sizeDifference) || 0;
 
+      // VALIDACIÓN AGREGADA: PRECIOS MAYORES A 0
+      if (ingredientPrice <= 0 || sizeDiff <= 0) {
+        toast.error("Los precios de configuración deben ser mayores a 0");
+        return;
+      }
+
       await updateDoc(ref, {
         ingredients,
         drinks,
@@ -892,7 +899,7 @@ export default function AdminPanel({ onLogout }) {
 
         {activeTab === "config" && (
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* ... Configuración (sin cambios) ... */}
+            {/* ... Configuración ... */}
              <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 h-fit">
               <h3 className="font-black text-slate-200 mb-4 text-lg">
                 Reglas de precio
@@ -912,6 +919,8 @@ export default function AdminPanel({ onLogout }) {
                           extraIngredient: e.target.value
                         }))
                       }
+                      min="0.01" // AÑADIDO MIN
+                      step="0.01"
                     />
                 </div>
                  <div className="space-y-1">
@@ -928,6 +937,8 @@ export default function AdminPanel({ onLogout }) {
                           sizeDifference: e.target.value
                         }))
                       }
+                      min="0.01" // AÑADIDO MIN
+                      step="0.01"
                     />
                 </div>
                 <button

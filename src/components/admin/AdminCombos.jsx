@@ -162,8 +162,9 @@ export default function AdminCombos() {
     }
 
     const basePriceNum = Number(editingCombo.basePrice);
-    if (Number.isNaN(basePriceNum) || basePriceNum < 0) {
-      toast.error("Precio base inválido");
+    // VALIDACIÓN CORREGIDA: DEBE SER MAYOR A 0
+    if (Number.isNaN(basePriceNum) || basePriceNum <= 0) {
+      toast.error("El precio base debe ser mayor a 0");
       return;
     }
 
@@ -369,7 +370,7 @@ export default function AdminCombos() {
                         basePrice: e.target.value,
                       }))
                     }
-                    min="0"
+                    min="0.01"
                     step="0.01"
                   />
                 </div>
