@@ -15,12 +15,12 @@ import {
 } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
-// Helper para iconos de categoría (Adaptado del AdminPanel)
+// Helper para iconos de categoría (Consistente con AdminPanel)
 const getCategoryIcon = (catName, isActive) => {
   const lower = (catName || "").toLowerCase();
   const baseSize = 16;
   
-  // Si está activo, forzamos blanco. Si no, usamos los colores distintivos del AdminPanel.
+  // Si está activo, forzamos blanco. Si no, usamos colores distintivos.
   if (lower.includes("pizza")) return <Pizza size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
   if (lower.includes("hamburguesa") || lower.includes("burger")) return <Sandwich size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
   if (lower.includes("bebida") || lower.includes("drink")) return <CupSoda size={baseSize} className={isActive ? "text-white" : "text-blue-400"} />;
@@ -147,9 +147,8 @@ export default function MenuPanel({
             </p>
           </div>
         ) : (
-          // ...
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map((product, index) => { // ✅ Index agregado
+            {filteredProducts.map((product, index) => {
               const isCombo = product.isCombo === true;
               const isClassic = product.isClassic === true;
               const price =
@@ -159,7 +158,7 @@ export default function MenuPanel({
 
               return (
                 <button
-                  key={product.id || product._signature || `${product.name}-${index}`} // ✅ Key segura
+                  key={product.id || product._signature || `${product.name}-${index}`}
                   type="button"
                   onClick={() => onProductClick(product)}
                   className="group relative bg-slate-900/80 rounded-2xl border border-slate-800 hover:border-orange-500/60 hover:bg-slate-900 shadow-sm hover:shadow-orange-500/20 hover:shadow-lg transition-all duration-150 text-left flex flex-col overflow-hidden"
