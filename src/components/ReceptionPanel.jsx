@@ -84,9 +84,29 @@ export default function ReceptionPanel({ onLogout }) {
     );
   }
 
-  const handleProductClick = (product) => {
+  // En src/components/ReceptionPanel.jsx
+
+const handleProductClick = (product) => {
+  // 1. Definir lógica de qué es una Pizza (igual que tenías en el Dispatcher)
+  const mainCategory = (product.mainCategory || "").toLowerCase();
+  const isPizza =
+    mainCategory === "pizzas" ||
+    product.pizzaType === "Clasica" ||
+    product.pizzaType === "Especialidad";
+
+  // 2. SI ES PIZZA: Seteamos el estado para que se abra el Modal (ProductDispatcher)
+  if (isPizza) {
     setSelectedProduct(product);
-  };
+  } 
+  // 3. SI ES PRODUCTO SIMPLE: Agregamos directo (sin abrir componentes ni useEffects)
+  else {
+    addToCart({
+      ...product,
+      qty: 1
+    });
+    toast.success("Producto agregado");
+  }
+};
 
   const handleCheckout = (formData) => {
     setPendingOrderData(formData);
