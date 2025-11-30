@@ -61,6 +61,15 @@ export default function ProductOptionsModal({
   };
 
   const handleConfirm = () => {
+    if (isClassic) {
+      if (selectedIngredients.length < includedCount) {
+        toast.error(`Selecciona al menos ${includedCount} ingredientes`, {
+          icon: <AlertCircle className="text-red-500" />,
+        });
+        return; // Bloquear confirmación
+      }
+    }
+
     const details = [];
 
     if (isPizza && hasSizes && sizeKey) {
@@ -72,6 +81,7 @@ export default function ProductOptionsModal({
         const ingText = selectedIngredients.join(", ");
         details.push(`Ingredientes: ${ingText}`);
       } else {
+        // Esto teóricamente ya no se alcanza por la validación
         details.push(`Ingredientes: (sin seleccionar)`);
       }
 

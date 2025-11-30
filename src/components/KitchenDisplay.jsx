@@ -12,7 +12,10 @@ import {
   PackageCheck
 } from "lucide-react";
 import { STATUS } from "../constants/types";
-import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
+
+// Sonido beep en base64 (mp3 pequeño)
+const NOTIFICATION_SOUND_BASE64 =
+  "data:audio/mp3;base64,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";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
@@ -23,7 +26,7 @@ export default function KitchenDisplay({ onLogout }) {
   const { updateOrderStatus } = useOrders();
 
   const audioRef = useRef(null);
-  const lastLatestTimeRef = useRef(null);
+  const lastActiveCountRef = useRef(null); // para detectar nuevas órdenes por cantidad
 
   // Reloj para recalcular tiempos en cocina
   useEffect(() => {
@@ -83,30 +86,20 @@ export default function KitchenDisplay({ onLogout }) {
 
         setOrders(active);
 
-        // detectar nuevas órdenes (según createdAt)
-        const times = active
-          .map((o) =>
-            o.createdAt?.toDate
-              ? o.createdAt.toDate().getTime()
-              : o.createdAt instanceof Date
-              ? o.createdAt.getTime()
-              : null
-          )
-          .filter((t) => typeof t === "number");
+        // LÓGICA: sonar si aumenta la cantidad de órdenes activas
+        const currentCount = active.length;
 
-        if (!times.length) return;
-
-        const latest = Math.max(...times);
-
-        if (lastLatestTimeRef.current == null) {
-          // primera carga: no sonar
-          lastLatestTimeRef.current = latest;
+        // primera vez: solo seteamos, no sonamos
+        if (lastActiveCountRef.current === null) {
+          lastActiveCountRef.current = currentCount;
           return;
         }
 
-        if (latest > lastLatestTimeRef.current) {
-          lastLatestTimeRef.current = latest;
+        if (currentCount > lastActiveCountRef.current) {
+          lastActiveCountRef.current = currentCount;
           playNotification();
+        } else {
+          lastActiveCountRef.current = currentCount;
         }
       },
       (error) => {
@@ -115,7 +108,8 @@ export default function KitchenDisplay({ onLogout }) {
     );
 
     return () => unsub();
-  }, [soundEnabled, audioInitialized]);
+    // sin dependencias: no re-suscribimos por sonido
+  }, []);
 
   const grouped = useMemo(() => {
     return {
@@ -200,7 +194,9 @@ export default function KitchenDisplay({ onLogout }) {
           <div className="hidden md:flex items-center gap-4 text-xs font-semibold">
             <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
               Nuevas:{" "}
-              <span className="text-orange-400">{grouped[STATUS.NEW].length}</span>
+              <span className="text-orange-400">
+                {grouped[STATUS.NEW].length}
+              </span>
             </span>
             <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
               En proceso:{" "}
@@ -257,9 +253,7 @@ export default function KitchenDisplay({ onLogout }) {
           title="Nuevas"
           color="orange"
           orders={grouped[STATUS.NEW]}
-          onAdvance={(order) =>
-            handleStatusChange(order, STATUS.PROCESS)
-          }
+          onAdvance={(order) => handleStatusChange(order, STATUS.PROCESS)}
           now={now}
           getMinutesInKitchen={getMinutesInKitchen}
         />
@@ -275,9 +269,7 @@ export default function KitchenDisplay({ onLogout }) {
           title="Listas"
           color="emerald"
           orders={grouped[STATUS.READY]}
-          onAdvance={(order) =>
-            handleStatusChange(order, STATUS.DELIVERED)
-          }
+          onAdvance={(order) => handleStatusChange(order, STATUS.DELIVERED)}
           now={now}
           getMinutesInKitchen={getMinutesInKitchen}
         />
@@ -294,7 +286,7 @@ function OrdersColumn({
   now,
   getMinutesInKitchen
 }) {
-  const colorClasses = {
+  const colorMap = {
     orange: {
       header: "text-orange-300",
       border: "border-orange-500/50",
@@ -316,7 +308,9 @@ function OrdersColumn({
       button:
         "bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 shadow-emerald-900/30"
     }
-  }[color] || colorClasses?.orange;
+  };
+
+  const colorClasses = colorMap[color] || colorMap.orange;
 
   return (
     <section className="flex flex-col bg-slate-950 border border-slate-800 rounded-3xl shadow-md overflow-hidden">

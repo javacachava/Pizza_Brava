@@ -22,15 +22,37 @@ export function useMenu() {
           ...doc.data(),
         }));
 
-        // Ocultar productos explícitamente desactivados
-        items = items.filter((item) => item.isActive !== false);
+        // --- FILTRADO ESTRICTO: activo + stock ---
+        items = items.filter((item) => {
+          // 1. Debe estar activo (isActive === false -> fuera)
+          if (item.isActive === false) return false;
 
-        // Normalizar campos esperados por la UI
+          // 2. Control de stock
+          // Tomamos stock de donde lo estés guardando
+          const rawStock =
+            item.stock !== undefined && item.stock !== null
+              ? item.stock
+              : item.currentStock; // opcional: otro nombre
+
+          // Si no hay campo de stock, asumimos infinito (se muestra)
+          if (rawStock === undefined || rawStock === null || rawStock === "") {
+            return true;
+          }
+
+          const stockNumber = Number(rawStock);
+
+          // Si no es un número válido, por seguridad lo mostramos
+          if (Number.isNaN(stockNumber)) return true;
+
+          // Solo se muestra si stock > 0
+          return stockNumber > 0;
+        });
+
+        // --- NORMALIZACIÓN PARA LA UI ---
         items = items.map((item) => ({
           ...item,
           mainCategory: item.mainCategory || "Otros",
           station: item.station || "cocina",
-          // Tipo útil para ProductDispatcher / combos
           type:
             item.type ||
             (item.isCombo
@@ -40,7 +62,7 @@ export function useMenu() {
               : "simple"),
         }));
 
-        // Orden básico: por categoría y luego por nombre
+        // --- ORDEN ---
         items.sort((a, b) => {
           if (a.mainCategory === b.mainCategory) {
             return (a.name || "").localeCompare(b.name || "");
