@@ -146,3 +146,43 @@ exports.archiveOldOrders = onSchedule("every day 04:00", async (event) => {
     await batch.commit();
     logger.info(`Se archivaron ${count} órdenes exitosamente.`);
 });
+
+// ----------------------------------------------------------------------
+// 3. CRON JOB: ELIMINACIÓN DE DATOS MENSUALES (Último día del mes 23:59)
+// ----------------------------------------------------------------------
+exports.monthlyDataCleanup = onSchedule("every day 23:59", async (event) => {
+    const now = new Date();
+    // UTC-6 para consistencia con El Salvador
+    const offsetMs = 6 * 60 * 60 * 1000;
+    const localNow = new Date(now.getTime() - offsetMs);
+
+    // Verificar si mañana es día 1 (lo que significa que hoy es el último día del mes)
+    const tomorrow = new Date(localNow);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (tomorrow.getDate() === 1) {
+        logger.info("Es fin de mes. Iniciando eliminación de reportes mensuales...");
+        
+        // Eliminar todos los documentos de daily_stats
+        const statsQuery = db.collection('daily_stats');
+        const snapshot = await statsQuery.get();
+
+        if (snapshot.empty) {
+            logger.info("No hay datos diarios para eliminar.");
+            return;
+        }
+
+        const batch = db.batch();
+        let deleteCount = 0;
+
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+            deleteCount++;
+        });
+
+        await batch.commit();
+        logger.info(`Se eliminaron ${deleteCount} registros de estadísticas diarias por cierre de mes.`);
+    } else {
+        logger.info("No es fin de mes aún. No se eliminan datos.");
+    }
+});
