@@ -130,52 +130,9 @@ export function useOrders() {
         });
       });
 
-      // 3) Estadísticas diarias (CLIENT SIDE)
-      // Como NO hay Cloud Functions activas, el cliente debe escribir esto.
-      if (!isOffline) {
-        const todayStr = getLocalDateStr();
-        const statsRef = doc(db, "daily_stats", todayStr);
-
-        // Agregados por Categoría
-        const categoryIncrements = {};
-        itemsSnapshot.forEach((item) => {
-          const catName = item.mainCategory || "Otros";
-          const field = `categoryBreakdown.${catName}`;
-          categoryIncrements[field] = increment(item.total);
-        });
-
-        // Agregados por Método de Pago
-        const payMethod = orderData.paymentMethod || "otro"; 
-        const payMethodSalesField = `paymentBreakdown.${payMethod}.sales`;
-        const payMethodCountField = `paymentBreakdown.${payMethod}.count`;
-
-        // Agregados por Producto (Top Products)
-        const productIncrements = {};
-        itemsSnapshot.forEach((item) => {
-          const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
-          const fieldSales = `productBreakdown.${safeId}.sales`;
-          const fieldQty = `productBreakdown.${safeId}.qty`;
-          const fieldName = `productBreakdown.${safeId}.name`; 
-          
-          productIncrements[fieldSales] = increment(item.total);
-          productIncrements[fieldQty] = increment(item.qty);
-          productIncrements[fieldName] = item.name; 
-        });
-
-        batch.set(
-          statsRef,
-          {
-            date: todayStr,
-            totalSales: increment(normalizedTotal),
-            totalOrders: increment(1),
-            ...categoryIncrements,
-            [payMethodSalesField]: increment(normalizedTotal),
-            [payMethodCountField]: increment(1),
-            ...productIncrements
-          },
-          { merge: true }
-        );
-      }
+      // 3) Estadísticas diarias (CLIENT SIDE) -> ELIMINADO
+      // La responsabilidad de actualizar daily_stats se ha delegado completamente
+      // a las Cloud Functions (processNewOrder) para evitar duplicidad de datos.
 
       await batch.commit();
 

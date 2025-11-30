@@ -1,5 +1,7 @@
+// src/components/TicketModal.jsx
 import React, { useMemo } from "react";
 import { X } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react"; // <--- 1. IMPORTAR LIBRERÍA
 
 export default function TicketModal({
   isOpen,
@@ -124,9 +126,9 @@ export default function TicketModal({
 
            <div className="border-t border-slate-400 pt-2 mt-2 text-xs">
               {ticketItems && ticketItems.length > 0 ? (
-                ticketItems.map((item, idx) => ( // ✅ idx ya existía
+                ticketItems.map((item, idx) => (
                   <div
-                    key={item.cartItemId || item.id || item._signature || `${item.name}-${idx}`} // ✅ Key segura
+                    key={item.cartItemId || item.id || item._signature || `${item.name}-${idx}`}
                     className="mb-2"
                   >
                     <div className="flex justify-between">
@@ -168,14 +170,14 @@ export default function TicketModal({
               <span>${ticketTotal.toFixed(2)}</span>
             </div>
 
+            {/* 2. REEMPLAZO DEL QR EXTERNO POR LIBRERÍA LOCAL */}
             <div className="flex flex-col items-center">
-              <div className="bg-white p-2 mb-2 border border-slate-300 rounded-lg">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(
-                    qrData
-                  )}`}
-                  alt="QR Code"
-                  className="w-32 h-32"
+              <div className="bg-white p-2 mb-2 border border-slate-300 rounded-lg flex items-center justify-center">
+                <QRCodeCanvas
+                  value={qrData}
+                  size={128}
+                  level={"M"}
+                  includeMargin={true}
                 />
               </div>
               <p className="text-[10px] text-center text-slate-600">
