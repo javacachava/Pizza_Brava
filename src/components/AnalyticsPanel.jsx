@@ -14,8 +14,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  PieChart,
-  Pie,
   Cell
 } from "recharts";
 import { Download, AlertCircle } from "lucide-react";
@@ -593,7 +591,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           </ChartWrapper>
         </div>
 
-        {/* Ventas por categoría */}
+        {/* Ventas por categoría (AHORA BAR CHART HORIZONTAL) */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
@@ -602,30 +600,19 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <ChartWrapper>
             {({ width, height }) =>
               summary.chartDataCat.length ? (
-                <PieChart width={width} height={height}>
-                  <Pie
-                    data={summary.chartDataCat}
-                    dataKey="totalSales"
-                    nameKey="category"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    label={({ percent }) =>
-                      `${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {summary.chartDataCat.map((entry, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                        stroke="#0f172a"
-                      />
-                    ))}
-                  </Pie>
+                <BarChart
+                  layout="vertical"
+                  width={width}
+                  height={height}
+                  data={summary.chartDataCat}
+                  margin={{ top: 0, right: 20, left: 20, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(val) => `$${val}`} />
+                  <YAxis dataKey="category" type="category" width={80} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                   <Tooltip
-                    formatter={(val) => `$${Number(val).toFixed(2)}`}
+                    cursor={{ fill: "#1e293b" }}
+                    formatter={(val) => [`$${Number(val).toFixed(2)}`, "Ventas"]}
                     contentStyle={{
                       borderRadius: "8px",
                       backgroundColor: "#0f172a",
@@ -634,13 +621,12 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                     }}
                     itemStyle={{ color: "#e2e8f0" }}
                   />
-                  <Legend
-                    layout="horizontal"
-                    verticalAlign="bottom"
-                    align="center"
-                    wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }}
-                  />
-                </PieChart>
+                  <Bar dataKey="totalSales" radius={[0, 4, 4, 0]} barSize={32}>
+                    {summary.chartDataCat.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm px-4 text-center">
                   <p>Sin desglose por categoría.</p>
