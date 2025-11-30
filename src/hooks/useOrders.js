@@ -1,3 +1,4 @@
+// src/hooks/useOrders.js
 import { useState } from "react";
 import {
   doc,
@@ -16,6 +17,15 @@ import { db } from "../services/firebase";
 import { toast } from "react-hot-toast";
 import { ROLES, STATUS, SYNC_STATUS } from "../constants/types";
 
+// HELPER: Obtener fecha local en formato YYYY-MM-DD
+// Esto soluciona el problema de que las ventas de la noche se guarden "mañana"
+const getLocalDateStr = () => {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60000;
+  const localDate = new Date(now.getTime() - offset);
+  return localDate.toISOString().split("T")[0];
+};
+
 export function useOrders() {
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +35,7 @@ export function useOrders() {
       return { number: "PENDIENTE", isOffline: true };
     }
 
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateStr(); // USAR FECHA LOCAL
     const counterRef = doc(db, "counters", "orders");
 
     try {
@@ -124,32 +134,30 @@ export function useOrders() {
 
       // 3) Estadísticas diarias
       if (!isOffline) {
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = getLocalDateStr(); // USAR FECHA LOCAL
         const statsRef = doc(db, "daily_stats", todayStr);
 
         // Agregados por Categoría
         const categoryIncrements = {};
         itemsSnapshot.forEach((item) => {
-          const field = `categoryBreakdown.${item.mainCategory}`;
+          // Asegurar que no sea undefined para evitar errores en Firestore
+          const catName = item.mainCategory || "Otros";
+          const field = `categoryBreakdown.${catName}`;
           categoryIncrements[field] = increment(item.total);
         });
 
         // Agregados por Método de Pago
-        const payMethod = orderData.paymentMethod || "otro"; // 'efectivo', 'tarjeta', etc.
+        const payMethod = orderData.paymentMethod || "otro"; 
         const payMethodSalesField = `paymentBreakdown.${payMethod}.sales`;
         const payMethodCountField = `paymentBreakdown.${payMethod}.count`;
 
         // Agregados por Producto (Top Products)
-        // Nota: Firestore tiene límite de escrituras por segundo en un doc, 
-        // si hay muchos items distintos podría ser pesado, pero para POS normal está bien.
         const productIncrements = {};
         itemsSnapshot.forEach((item) => {
-          // Usamos item.id (o nombre sanitizado) como key
-          // sanitize key for firestore map (no dots, slashes)
           const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
           const fieldSales = `productBreakdown.${safeId}.sales`;
           const fieldQty = `productBreakdown.${safeId}.qty`;
-          const fieldName = `productBreakdown.${safeId}.name`; // Guardamos nombre para reporte
+          const fieldName = `productBreakdown.${safeId}.name`; 
           
           productIncrements[fieldSales] = increment(item.total);
           productIncrements[fieldQty] = increment(item.qty);

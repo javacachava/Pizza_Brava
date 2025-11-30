@@ -19,6 +19,7 @@ import { db } from "../services/firebase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import dayjs from "dayjs";
+import { toast } from "react-hot-toast";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
@@ -192,7 +193,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   // Generación de PDF PROFESIONAL
   const handleExportPDF = () => {
     if (!summary || !stats.length) {
-      alert("No hay datos para exportar.");
+      toast.error("No hay datos para exportar.", {
+        icon: <AlertCircle className="text-red-500" />
+      });
       return;
     }
 
@@ -209,9 +212,13 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     }
 
     if (stats.length < requiredDays) {
-      alert(
-        `No se puede generar el PDF de ${dateRangeLabel}. ` +
-          `Días con cierre: ${stats.length} / ${requiredDays}.`
+      toast.error(
+        `No se puede generar el PDF de ${dateRangeLabel}.\n` +
+        `Días con cierre: ${stats.length} / ${requiredDays}.`,
+        {
+          duration: 5000,
+          style: { minWidth: "350px", background: "#334155", color: "#fff" }
+        }
       );
       return;
     }
@@ -377,9 +384,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       });
 
       doc.save(`cierre_caja_${rangeMeta.startStr}.pdf`);
+      toast.success("Reporte PDF generado correctamente");
     } catch (e) {
       console.error("Error generando PDF", e);
-      alert("Error al generar el PDF. Verifica la consola.");
+      toast.error("Error al generar el PDF. Verifica la consola.");
     }
   };
 
@@ -394,24 +402,24 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   return (
     <div className="space-y-6">
       {/* Header / filtros / resumen rápido */}
-      <div className="flex flex-col md:flex-row justify-between items-start gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4 bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-500">
             Reportes
           </p>
-          <h2 className="text-xl font-black text-slate-900">
+          <h2 className="text-xl font-black text-white">
             Resumen de ventas
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             {dateRangeLabel}{" "}
             {rangeMeta.startStr && rangeMeta.endStr && (
-              <span className="inline-block ml-1 text-slate-400">
+              <span className="inline-block ml-1 text-slate-500">
                 ({rangeMeta.startStr} – {rangeMeta.endStr})
               </span>
             )}
           </p>
           {error && (
-            <div className="mt-2 inline-flex items-center gap-1 text-xs text-red-500">
+            <div className="mt-2 inline-flex items-center gap-1 text-xs text-red-400">
               <AlertCircle size={14} />
               {error}
             </div>
@@ -419,13 +427,13 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+          <div className="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800">
             <button
               onClick={() => setDateRange("today")}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "today"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-white"
+                  ? "bg-slate-800 text-white shadow-sm border border-slate-700"
+                  : "text-slate-500 hover:text-slate-300"
               }`}
             >
               Hoy
@@ -434,8 +442,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
               onClick={() => setDateRange("week")}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "week"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-white"
+                  ? "bg-slate-800 text-white shadow-sm border border-slate-700"
+                  : "text-slate-500 hover:text-slate-300"
               }`}
             >
               7 días
@@ -444,8 +452,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
               onClick={() => setDateRange("month")}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "month"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-white"
+                  ? "bg-slate-800 text-white shadow-sm border border-slate-700"
+                  : "text-slate-500 hover:text-slate-300"
               }`}
             >
               30 días
@@ -455,7 +463,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           {enablePrint && (
             <button
               onClick={handleExportPDF}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 shadow-sm transition-colors"
             >
               <Download size={14} />
               Exportar PDF
@@ -490,8 +498,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       {/* Gráficas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Ventas por día */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <h3 className="text-sm font-bold text-slate-800 mb-3">
+        <div className="lg:col-span-2 bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
           </h3>
           <div className="h-72">
@@ -500,38 +508,41 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                 <BarChart data={summary.chartDataDaily}>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="#e5e7eb"
+                    stroke="#334155"
                     vertical={false}
                   />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
                     tickMargin={8}
                     axisLine={false}
                     tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
+                    tick={{ fontSize: 11, fill: "#94a3b8" }}
                     tickMargin={4}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(val) => `$${val}`}
                   />
                   <Tooltip
-                    cursor={{ fill: "#f3f4f6" }}
+                    cursor={{ fill: "#1e293b" }}
                     contentStyle={{
                       borderRadius: "8px",
-                      border: "none",
-                      boxShadow:
-                        "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                      border: "1px solid #334155",
+                      backgroundColor: "#0f172a",
+                      color: "#f8fafc",
+                      boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.3)"
                     }}
+                    itemStyle={{ color: "#e2e8f0" }}
+                    labelStyle={{ color: "#94a3b8", marginBottom: "0.25rem" }}
                     formatter={(value, name) =>
                       name === "totalOrders"
                         ? [`${value}`, "Órdenes"]
                         : [`$${Number(value).toFixed(2)}`, "Ventas"]
                     }
                   />
-                  <Legend wrapperStyle={{ paddingTop: "10px" }} />
+                  <Legend wrapperStyle={{ paddingTop: "10px", color: "#cbd5e1" }} />
                   <Bar
                     dataKey="totalSales"
                     name="Ventas ($)"
@@ -542,7 +553,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">
+              <div className="h-full flex items-center justify-center text-slate-500 text-sm">
                 Sin datos en este rango.
               </div>
             )}
@@ -550,8 +561,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         </div>
 
         {/* Ventas por categoría */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-          <h3 className="text-sm font-bold text-slate-800 mb-3">
+        <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
           </h3>
           <div className="h-72">
@@ -575,23 +586,30 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                       <Cell
                         key={`cell-${index}`}
                         fill={COLORS[index % COLORS.length]}
+                        stroke="#0f172a"
                       />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(val) => `$${Number(val).toFixed(2)}`}
-                    contentStyle={{ borderRadius: "8px" }}
+                    contentStyle={{ 
+                      borderRadius: "8px", 
+                      backgroundColor: "#0f172a", 
+                      borderColor: "#334155", 
+                      color: "#f8fafc" 
+                    }}
+                    itemStyle={{ color: "#e2e8f0" }}
                   />
                   <Legend
                     layout="horizontal"
                     verticalAlign="bottom"
                     align="center"
-                    wrapperStyle={{ fontSize: "11px" }}
+                    wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm px-4 text-center">
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm px-4 text-center">
                 <p>Sin desglose por categoría.</p>
                 <p className="text-[10px] mt-1 opacity-70">
                   Las nuevas órdenes aparecerán aquí automáticamente.
@@ -607,17 +625,17 @@ export default function AnalyticsPanel({ enablePrint = false }) {
 
 function MetricCard({ label, value, subtitle }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition-shadow">
+    <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-5 flex flex-col justify-between hover:border-orange-500/30 transition-colors">
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 mb-1">
           {label}
         </p>
-        <p className="text-3xl font-black text-slate-900 tracking-tight">
+        <p className="text-3xl font-black text-white tracking-tight">
           {value}
         </p>
       </div>
       {subtitle && (
-        <p className="mt-3 text-[11px] font-medium text-slate-500 bg-slate-50 inline-block px-2 py-1 rounded-md self-start">
+        <p className="mt-3 text-[11px] font-medium text-slate-400 bg-slate-950 inline-block px-2 py-1 rounded-md self-start border border-slate-800">
           {subtitle}
         </p>
       )}

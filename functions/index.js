@@ -1,3 +1,4 @@
+// functions/index.js
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
@@ -55,7 +56,12 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
         });
 
         // D. Actualizar Estadísticas Diarias (Atomic Increment)
-        const dateStr = order.createdAt.toDate().toISOString().split('T')[0]; 
+        // CORRECCIÓN: Usar Timezone UTC-6 (El Salvador) para que coincida con el Frontend
+        const utcDate = order.createdAt.toDate();
+        const offsetMs = 6 * 60 * 60 * 1000; // 6 horas en milisegundos
+        const svDate = new Date(utcDate.getTime() - offsetMs);
+        const dateStr = svDate.toISOString().split('T')[0];
+        
         const statsRef = db.collection('daily_stats').doc(dateStr);
 
         // 1. Categorías

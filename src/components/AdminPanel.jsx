@@ -1,4 +1,3 @@
-// src/components/AdminPanel.jsx
 import React, { useState, useEffect } from "react";
 import {
   LogOut,
@@ -16,7 +15,8 @@ import {
   UtensilsCrossed,
   IceCream,
   Soup,
-  Croissant
+  Croissant,
+  AlertTriangle
 } from "lucide-react";
 import {
   doc,
@@ -44,6 +44,39 @@ import AdminCombos from "./admin/AdminCombos";
 import { toast } from "react-hot-toast";
 import { ROLES } from "../constants/types";
 
+// --- COMPONENTE MODAL DE CONFIRMACIÓN (Dark Mode) ---
+const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="p-6 text-center">
+          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
+            <AlertTriangle className="text-red-500" size={24} />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+          <p className="text-sm text-slate-400 mb-6">{message}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onCancel}
+              className="py-2.5 px-4 rounded-xl font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={onConfirm}
+              className="py-2.5 px-4 rounded-xl font-bold text-white bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20 transition-colors"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Helper para iconos de categoría
 const getCategoryIcon = (catName) => {
   const lower = (catName || "").toLowerCase();
@@ -54,7 +87,7 @@ const getCategoryIcon = (catName) => {
   if (lower.includes("postre") || lower.includes("helado")) return <IceCream size={16} className="text-pink-400" />;
   if (lower.includes("birria") || lower.includes("sopa")) return <Soup size={16} className="text-red-400" />;
   if (lower.includes("complemento") || lower.includes("side")) return <Croissant size={16} className="text-yellow-400" />;
-  return <UtensilsCrossed size={16} className="text-slate-400" />;
+  return <UtensilsCrossed size={16} className="text-slate-500" />;
 };
 
 const ListEditor = ({ title, items, setItems }) => {
@@ -79,16 +112,16 @@ const ListEditor = ({ title, items, setItems }) => {
     <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm h-full flex flex-col">
       <h4 className="font-black text-xs uppercase text-slate-400 mb-4 flex justify-between tracking-widest">
         {title}
-        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700">
+        <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded-md">
           {items.length}
         </span>
       </h4>
 
-      <div className="flex-1 content-start flex flex-wrap gap-2 mb-4 overflow-y-auto max-h-48">
+      <div className="flex-1 content-start flex flex-wrap gap-2 mb-4 overflow-y-auto max-h-48 custom-scrollbar">
         {items.map((item, i) => (
           <span
             key={i}
-            className="bg-slate-950 border border-slate-700 pl-3 pr-1 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 text-slate-300 group hover:border-orange-500/50 hover:bg-slate-900 transition-colors"
+            className="bg-slate-950 border border-slate-800 pl-3 pr-1 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 text-slate-300 group hover:border-orange-500/50 hover:bg-slate-900 transition-colors"
           >
             {item}
             <button
@@ -129,6 +162,27 @@ export default function AdminPanel({ onLogout }) {
   const { config, loadingConfig } = useConfig();
   const { archiveOldOrders } = useOrders();
 
+  // Estado para el modal de confirmación
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: null
+  });
+
+  // Helper para abrir confirmación
+  const requestConfirm = (title, message, action) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        await action();
+      }
+    });
+  };
+
   // Mantenimiento automático de órdenes viejas
   useEffect(() => {
     const checkOldData = async () => {
@@ -146,17 +200,15 @@ export default function AdminPanel({ onLogout }) {
 
         const count = snapshot.data().count || 0;
         if (count > 0) {
-          // Usamos toast en lugar de window.confirm para notificar primero, 
-          // aunque para acciones destructivas masivas, un confirm nativo a veces es más seguro 
-          // o un modal dedicado. Mantengo confirm por seguridad, pero con estilo oscuro si se pudiera.
-          // Por simplicidad en este paso, mantenemos confirm nativo pero el resto dark.
-          const ok = window.confirm(
-            `MANTENIMIENTO:\nHay ${count} órdenes con más de 90 días.\n¿Moverlas al archivo?`
+          // Usamos el modal custom en lugar de window.confirm
+          requestConfirm(
+            "Mantenimiento",
+            `Hay ${count} órdenes con más de 90 días. ¿Moverlas al archivo?`,
+            async () => {
+              const moved = await archiveOldOrders();
+              toast.success(`${moved} órdenes archivadas.`);
+            }
           );
-          if (ok) {
-            const moved = await archiveOldOrders();
-            toast.success(`${moved} órdenes archivadas.`);
-          }
         }
 
         if (typeof window !== "undefined") {
@@ -282,7 +334,6 @@ export default function AdminPanel({ onLogout }) {
       return toast.error("Nombre obligatorio");
     }
 
-    // Extraemos ID para no guardarlo dentro del doc
     const { id, ...rest } = formData;
 
     const pData = {
@@ -296,10 +347,8 @@ export default function AdminPanel({ onLogout }) {
 
     try {
       if (id) {
-        // EDITAR
         await updateDoc(doc(db, "menuItems", id), pData);
       } else {
-        // CREAR
         await addDoc(collection(db, "menuItems"), pData);
       }
 
@@ -312,17 +361,21 @@ export default function AdminPanel({ onLogout }) {
     }
   };
 
-  const handleDeleteProduct = async (product) => {
-    const ok = window.confirm(`¿Eliminar "${product.name}" del menú?`);
-    if (!ok) return;
-    try {
-      await deleteDoc(doc(db, "menuItems", product.id));
-      toast.success("Producto eliminado");
-      fetchProducts();
-    } catch (err) {
-      console.error("Error eliminando producto:", err);
-      toast.error("No se pudo eliminar");
-    }
+  const handleDeleteProduct = (product) => {
+    requestConfirm(
+      "Eliminar producto",
+      `¿Estás seguro de eliminar "${product.name}" del menú? Esta acción no se puede deshacer.`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, "menuItems", product.id));
+          toast.success("Producto eliminado");
+          fetchProducts();
+        } catch (err) {
+          console.error("Error eliminando producto:", err);
+          toast.error("No se pudo eliminar");
+        }
+      }
+    );
   };
 
   const fetchUsers = async () => {
@@ -400,21 +453,25 @@ export default function AdminPanel({ onLogout }) {
     }
   };
 
-  const handleDeleteUser = async (user) => {
+  const handleDeleteUser = (user) => {
     if (user.role === ROLES.ADMIN) {
       toast.error("No se pueden eliminar administradores");
       return;
     }
-    const ok = window.confirm(`¿Eliminar al usuario "${user.name}"?`);
-    if (!ok) return;
-    try {
-      await deleteDoc(doc(db, "users", user.id));
-      toast.success("Usuario eliminado");
-      fetchUsers();
-    } catch (err) {
-      console.error("Error eliminando usuario:", err);
-      toast.error("No se pudo eliminar");
-    }
+    requestConfirm(
+      "Eliminar usuario",
+      `¿Eliminar permanentemente al usuario "${user.name}"?`,
+      async () => {
+        try {
+          await deleteDoc(doc(db, "users", user.id));
+          toast.success("Usuario eliminado");
+          fetchUsers();
+        } catch (err) {
+          console.error("Error eliminando usuario:", err);
+          toast.error("No se pudo eliminar");
+        }
+      }
+    );
   };
 
   const handleSaveGlobalConfig = async () => {
@@ -459,6 +516,16 @@ export default function AdminPanel({ onLogout }) {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
+      
+      {/* Modal de confirmación global */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+      />
+
       {/* Navbar */}
       <header className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex justify-between items-center shadow-lg z-20 sticky top-0">
         <h1 className="text-xl font-black flex gap-3 items-center tracking-tight text-white">
