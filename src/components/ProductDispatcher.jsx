@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import ProductOptionsModal from "./ProductOptionsModal";
 
 export default function ProductDispatcher({
@@ -6,23 +6,37 @@ export default function ProductDispatcher({
   onClose,
   onConfirm,
   globalConfig,
-  ingredients, // por ahora no usado, pero lo dejamos por compatibilidad
-  sides,       // idem
-  drinks,      // idem
-  potatoes,    // idem
-  sauces       // idem
+  ingredients, 
+  sides,       
+  drinks,      
+  potatoes,    
+  sauces       
 }) {
-  if (!selectedProduct) return null;
-
-  const mainCategory = (selectedProduct.mainCategory || "").toLowerCase();
-
+  // Determinamos si es pizza antes del return
+  const mainCategory = (selectedProduct?.mainCategory || "").toLowerCase();
   const isPizza =
     mainCategory === "pizzas" ||
-    selectedProduct.pizzaType === "Clasica" ||
-    selectedProduct.pizzaType === "Especialidad";
+    selectedProduct?.pizzaType === "Clasica" ||
+    selectedProduct?.pizzaType === "Especialidad";
 
   // ============================================================
-  // 1) PIZZAS → usar ProductOptionsModal (tamaños + ingredientes)
+  // SOLUCIÓN: Usar useEffect para evitar la doble ejecución
+  // ============================================================
+  useEffect(() => {
+    if (selectedProduct && !isPizza) {
+      // Se agrega al carrito solo una vez cuando el componente se monta
+      onConfirm({
+        ...selectedProduct,
+        qty: selectedProduct.qty ?? 1
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // El array vacío asegura que solo corra una vez al montar
+
+  if (!selectedProduct) return null;
+
+  // ============================================================
+  // 1) PIZZAS → renderizar ProductOptionsModal
   // ============================================================
   if (isPizza) {
     return (
@@ -37,14 +51,8 @@ export default function ProductDispatcher({
   }
 
   // ============================================================
-  // 2) RESTO DE PRODUCTOS → se agregan directo al carrito
-  //    (agua, birrias, hamburguesas simples, combos simples, etc.)
+  // 2) RESTO DE PRODUCTOS → Retornamos null porque el useEffect 
+  //    ya se encargó de agregarlo.
   // ============================================================
-  onConfirm({
-    ...selectedProduct,
-    qty: selectedProduct.qty ?? 1
-  });
-
-  // No renderizamos modal en este caso
   return null;
 }
