@@ -2,12 +2,35 @@ import React, { useState, useMemo } from "react";
 import {
   Search,
   UtensilsCrossed,
-  Flame,
   LogOut,
   History,
-  ChevronRight
+  ChevronRight,
+  Pizza,
+  Sandwich,
+  CupSoda,
+  Layers,
+  IceCream,
+  Soup,
+  Croissant
 } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
+
+// Helper para iconos de categoría (Adaptado del AdminPanel)
+const getCategoryIcon = (catName, isActive) => {
+  const lower = (catName || "").toLowerCase();
+  const baseSize = 16;
+  
+  // Si está activo, forzamos blanco. Si no, usamos los colores distintivos del AdminPanel.
+  if (lower.includes("pizza")) return <Pizza size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
+  if (lower.includes("hamburguesa") || lower.includes("burger")) return <Sandwich size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
+  if (lower.includes("bebida") || lower.includes("drink")) return <CupSoda size={baseSize} className={isActive ? "text-white" : "text-blue-400"} />;
+  if (lower.includes("combo")) return <Layers size={baseSize} className={isActive ? "text-white" : "text-purple-400"} />;
+  if (lower.includes("postre") || lower.includes("helado")) return <IceCream size={baseSize} className={isActive ? "text-white" : "text-pink-400"} />;
+  if (lower.includes("birria") || lower.includes("sopa")) return <Soup size={baseSize} className={isActive ? "text-white" : "text-red-400"} />;
+  if (lower.includes("complemento") || lower.includes("side")) return <Croissant size={baseSize} className={isActive ? "text-white" : "text-yellow-400"} />;
+  
+  return <UtensilsCrossed size={baseSize} className={isActive ? "text-white" : "text-slate-500"} />;
+};
 
 export default function MenuPanel({
   menuItems,
@@ -99,15 +122,13 @@ export default function MenuPanel({
                 key={cat.id}
                 type="button"
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex items-center gap-1 border transition-all ${
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex items-center gap-2 border transition-all ${
                   isActive
                     ? "bg-orange-500 text-white border-orange-400 shadow shadow-orange-500/30"
                     : "bg-slate-900 text-slate-300 border-slate-700 hover:border-orange-400 hover:text-orange-200"
                 }`}
               >
-                {cat.id === "Pizzas" && (
-                  <Flame size={14} className={isActive ? "" : "text-orange-400"} />
-                )}
+                {getCategoryIcon(cat.label, isActive)}
                 {cat.label}
               </button>
             );
