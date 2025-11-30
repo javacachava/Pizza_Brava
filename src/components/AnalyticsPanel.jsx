@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+// src/components/AnalyticsPanel.jsx
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect
+} from "react";
 import {
   BarChart,
   Bar,
@@ -7,7 +14,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell
@@ -29,18 +35,6 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Evitar que Recharts mida el contenedor antes de estar montado
-  const [mounted, setMounted] = useState(false);
-  
-  // CORRECCIÓN 1: Usar setTimeout para asegurar que el layout CSS (Grid) esté listo
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setMounted(true);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, []);
-
-  
   // Cargar documentos de daily_stats según rango seleccionado
   useEffect(() => {
     const load = async () => {
@@ -161,6 +155,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     });
 
     const chartDataCat = Object.entries(categoryTotalsSales)
+      // si quieres que dibuje aunque tenga 0, quita este filter:
       .filter(([, val]) => val > 0)
       .map(([category, sales]) => ({
         category,
@@ -195,6 +190,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     };
   }, [stats]);
 
+  // DEBUG: mira en consola qué trae el pastel
+  console.log("chartDataCat (pastel):", summary.chartDataCat);
+
   const dateRangeLabel = useMemo(() => {
     if (dateRange === "today") return "Hoy";
     if (dateRange === "week") return "Últimos 7 días";
@@ -218,7 +216,6 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     if (dateRange === "week") {
       requiredDays = 7;
     } else if (dateRange === "month") {
-      // usamos el rango real (29, 30 o 31 días según corresponda)
       requiredDays = daysInRange;
     }
 
@@ -425,7 +422,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   return (
     <div className="space-y-6">
       {/* Header / filtros / resumen rápido */}
-      <div className="flex flex-col md-flex-row justify-between items-start gap-4 bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4 bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-500">
             Reportes
@@ -525,10 +522,15 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
           </h3>
-          <div className="h-72 w-full min-w-0 relative">
-            {mounted && summary.chartDataDaily.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={summary.chartDataDaily}>
+
+          <ChartWrapper>
+            {({ width, height }) =>
+              summary.chartDataDaily.length ? (
+                <BarChart
+                  width={width}
+                  height={height}
+                  data={summary.chartDataDaily}
+                >
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="#334155"
@@ -558,7 +560,6 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.3)"
                     }}
                     itemStyle={{ color: "#e2e8f0" }}
-                    // CORRECCIÓN 2: Usar 'margin' en lugar de 'marginBottom' para evitar conflicto
                     labelStyle={{
                       color: "#94a3b8",
                       margin: "0 0 4px 0"
@@ -583,13 +584,13 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                     barSize={40}
                   />
                 </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                Sin datos en este rango.
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+                  Sin datos en este rango.
+                </div>
+              )
+            }
+          </ChartWrapper>
         </div>
 
         {/* Ventas por categoría */}
@@ -597,10 +598,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
           </h3>
-          <div className="h-72 w-full min-w-0 relative">
-            {mounted && summary.chartDataCat.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <PieChart>
+
+          <ChartWrapper>
+            {({ width, height }) =>
+              summary.chartDataCat.length ? (
+                <PieChart width={width} height={height}>
                   <Pie
                     data={summary.chartDataCat}
                     dataKey="totalSales"
@@ -639,16 +641,16 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                     wrapperStyle={{ fontSize: "11px", color: "#94a3b8" }}
                   />
                 </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm px-4 text-center">
-                <p>Sin desglose por categoría.</p>
-                <p className="text-[10px] mt-1 opacity-70">
-                  Las nuevas órdenes aparecerán aquí automáticamente.
-                </p>
-              </div>
-            )}
-          </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm px-4 text-center">
+                  <p>Sin desglose por categoría.</p>
+                  <p className="text-[10px] mt-1 opacity-70">
+                    Las nuevas órdenes aparecerán aquí automáticamente.
+                  </p>
+                </div>
+              )
+            }
+          </ChartWrapper>
         </div>
       </div>
     </div>
@@ -670,6 +672,58 @@ function MetricCard({ label, value, subtitle }) {
         <p className="mt-3 text-[11px] font-medium text-slate-400 bg-slate-950 inline-block px-2 py-1 rounded-md self-start border border-slate-800">
           {subtitle}
         </p>
+      )}
+    </div>
+  );
+}
+
+// Wrapper que asegura width/height > 0 antes de renderizar el chart
+function ChartWrapper({ children, className = "" }) {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const updateSize = () => {
+      const rect = el.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+      if (width > 0 && height > 0) {
+        setSize({ width, height });
+      }
+    };
+
+    updateSize();
+
+    let observer;
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(updateSize);
+      observer.observe(el);
+    }
+
+    window.addEventListener("resize", updateSize);
+
+    return () => {
+      if (observer) observer.disconnect();
+      window.removeEventListener("resize", updateSize);
+    };
+  }, []);
+
+  const hasSize = size.width > 0 && size.height > 0;
+
+  return (
+    <div
+      ref={ref}
+      className={`h-72 w-full min-w-0 relative ${className}`}
+    >
+      {hasSize ? (
+        children(size)
+      ) : (
+        <div className="h-full flex items-center justify-center text-slate-500 text-sm">
+          Cargando gráfico...
+        </div>
       )}
     </div>
   );
