@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, query, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase";
 
 export function useMenu() {
@@ -8,47 +8,46 @@ export function useMenu() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    let cancelled = false;
+    setLoading(true);
+    setError(null);
 
-    const loadMenu = async () => {
-      setLoading(true);
-      setError(null);
+    // Usamos onSnapshot para actualizaciones en tiempo real
+    const q = query(collection(db, "menuItems"));
 
-      try {
-        const snap = await getDocs(collection(db, "menuItems"));
-
-        let items = snap.docs.map((doc) => ({
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        let items = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }));
 
         // --- FILTRADO ESTRICTO: activo + stock ---
         items = items.filter((item) => {
-          // 1. Debe estar activo (isActive === false -> fuera)
+          // 1. Debe estar activo
           if (item.isActive === false) return false;
 
           // 2. Control de stock
-          // Tomamos stock de donde lo estés guardando
           const rawStock =
             item.stock !== undefined && item.stock !== null
               ? item.stock
-              : item.currentStock; // opcional: otro nombre
+              : item.currentStock;
 
-          // Si no hay campo de stock, asumimos infinito (se muestra)
+          // Si no hay campo de stock (undefined/null/vacío), asumimos infinito
           if (rawStock === undefined || rawStock === null || rawStock === "") {
             return true;
           }
 
           const stockNumber = Number(rawStock);
 
-          // Si no es un número válido, por seguridad lo mostramos
+          // Si no es un número válido, por seguridad lo mostramos (o podrías ocultarlo)
           if (Number.isNaN(stockNumber)) return true;
 
           // Solo se muestra si stock > 0
           return stockNumber > 0;
         });
 
-        // --- NORMALIZACIÓN PARA LA UI ---
+        // --- NORMALIZACIÓN ---
         items = items.map((item) => ({
           ...item,
           mainCategory: item.mainCategory || "Otros",
@@ -70,26 +69,17 @@ export function useMenu() {
           return (a.mainCategory || "").localeCompare(b.mainCategory || "");
         });
 
-        if (!cancelled) {
-          setMenuItems(items);
-        }
-      } catch (err) {
+        setMenuItems(items);
+        setLoading(false);
+      },
+      (err) => {
         console.error("Error al cargar menú:", err);
-        if (!cancelled) {
-          setError(err);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setError(err);
+        setLoading(false);
       }
-    };
+    );
 
-    loadMenu();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => unsubscribe();
   }, []);
 
   return { menuItems, loading, error };
