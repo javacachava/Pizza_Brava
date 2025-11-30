@@ -11,7 +11,6 @@ import {
   query,
   where,
   limit,
-  increment,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { toast } from "react-hot-toast";
@@ -132,52 +131,9 @@ export function useOrders() {
         });
       });
 
-      // 3) Estadísticas diarias
-      if (!isOffline) {
-        const todayStr = getLocalDateStr(); // USAR FECHA LOCAL
-        const statsRef = doc(db, "daily_stats", todayStr);
-
-        // Agregados por Categoría
-        const categoryIncrements = {};
-        itemsSnapshot.forEach((item) => {
-          // Asegurar que no sea undefined para evitar errores en Firestore
-          const catName = item.mainCategory || "Otros";
-          const field = `categoryBreakdown.${catName}`;
-          categoryIncrements[field] = increment(item.total);
-        });
-
-        // Agregados por Método de Pago
-        const payMethod = orderData.paymentMethod || "otro"; 
-        const payMethodSalesField = `paymentBreakdown.${payMethod}.sales`;
-        const payMethodCountField = `paymentBreakdown.${payMethod}.count`;
-
-        // Agregados por Producto (Top Products)
-        const productIncrements = {};
-        itemsSnapshot.forEach((item) => {
-          const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
-          const fieldSales = `productBreakdown.${safeId}.sales`;
-          const fieldQty = `productBreakdown.${safeId}.qty`;
-          const fieldName = `productBreakdown.${safeId}.name`; 
-          
-          productIncrements[fieldSales] = increment(item.total);
-          productIncrements[fieldQty] = increment(item.qty);
-          productIncrements[fieldName] = item.name; 
-        });
-
-        batch.set(
-          statsRef,
-          {
-            date: todayStr,
-            totalSales: increment(normalizedTotal),
-            totalOrders: increment(1),
-            ...categoryIncrements,
-            [payMethodSalesField]: increment(normalizedTotal),
-            [payMethodCountField]: increment(1),
-            ...productIncrements
-          },
-          { merge: true }
-        );
-      }
+      // NOTA: Se eliminó la actualización de 'daily_stats' desde aquí.
+      // Ahora esa responsabilidad es exclusiva del Cloud Function (functions/index.js)
+      // para evitar duplicidad de datos.
 
       await batch.commit();
 

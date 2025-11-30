@@ -188,9 +188,6 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     };
   }, [stats]);
 
-  // DEBUG: verificar datos en consola
-  // console.log("chartDataCat:", summary.chartDataCat);
-
   const dateRangeLabel = useMemo(() => {
     if (dateRange === "today") return "Hoy";
     if (dateRange === "week") return "Últimos 7 días";
@@ -514,9 +511,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       </div>
 
       {/* Gráficas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* CAMBIO: Se unifica la grilla a 1 columna para que las gráficas ocupen todo el ancho */}
+      <div className="grid grid-cols-1 gap-6">
         {/* Ventas por día */}
-        <div className="lg:col-span-2 bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
+        <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
           </h3>
