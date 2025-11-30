@@ -1,4 +1,3 @@
-// src/components/AnalyticsPanel.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import {
   BarChart,
@@ -522,7 +521,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           </h3>
           <div className="h-72 w-full min-w-0 relative">
             {mounted && summary.chartDataDaily.length ? (
-              <ResponsiveContainer width="99%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={summary.chartDataDaily}>
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -593,7 +592,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           </h3>
           <div className="h-72 w-full min-w-0 relative">
             {mounted && summary.chartDataCat.length ? (
-              <ResponsiveContainer width="99%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={summary.chartDataCat}
