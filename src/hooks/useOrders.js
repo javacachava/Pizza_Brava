@@ -130,13 +130,11 @@ export function useOrders() {
         });
       });
 
-      // 3) Estadísticas diarias (CLIENT SIDE)
-      // Como NO hay Cloud Functions activas, el cliente debe escribir esto.
+      // 3) Estadísticas diarias (CLIENT SIDE - Temporal sin Cloud Functions)
       if (!isOffline) {
         const todayStr = getLocalDateStr();
         const statsRef = doc(db, "daily_stats", todayStr);
 
-        // Agregados por Categoría
         const categoryIncrements = {};
         itemsSnapshot.forEach((item) => {
           const catName = item.mainCategory || "Otros";
@@ -144,12 +142,10 @@ export function useOrders() {
           categoryIncrements[field] = increment(item.total);
         });
 
-        // Agregados por Método de Pago
         const payMethod = orderData.paymentMethod || "otro"; 
         const payMethodSalesField = `paymentBreakdown.${payMethod}.sales`;
         const payMethodCountField = `paymentBreakdown.${payMethod}.count`;
 
-        // Agregados por Producto (Top Products)
         const productIncrements = {};
         itemsSnapshot.forEach((item) => {
           const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
@@ -199,15 +195,17 @@ export function useOrders() {
     }
   };
 
+  // --- REGLA: RETENCIÓN DE 1 MES ---
   const archiveOldOrders = async () => {
     setLoading(true);
     try {
-      const ninetyDaysAgo = new Date();
-      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const limitDate = new Date();
+      // Se eliminan órdenes de más de 30 días
+      limitDate.setDate(limitDate.getDate() - 30);
 
       const q = query(
         collection(db, "orders"),
-        where("createdAt", "<", ninetyDaysAgo),
+        where("createdAt", "<", limitDate),
         limit(100)
       );
 
