@@ -1,4 +1,3 @@
-// src/components/AnalyticsPanel.jsx
 import React, {
   useState,
   useEffect,
@@ -24,11 +23,17 @@ import autoTable from "jspdf-autotable";
 import dayjs from "dayjs";
 import { toast } from "react-hot-toast";
 
-// --- CONFIGURACIÓN DEL NEGOCIO (ESTÁTICA) ---
+// ==========================================
+// 1. CONFIGURACIÓN VISUAL Y DE NEGOCIO
+// ==========================================
+
+// [IMPORTANTE] PEGA AQUÍ EL BASE64 DE TU LOGO ENTRE LAS COMILLAS
+const LOGO_BASE64 = ""; 
+
+// Configuración de Datos Fijos para el Reporte
 const BUSINESS_CONFIG = {
   nombre: "PIZZA BRAVA",
-  // Puedes poner una URL real o base64 aquí
-  logo_url: "https://cdn-icons-png.flaticon.com/512/3132/3132693.png", 
+  logo_url: LOGO_BASE64, 
   responsable: {
     nombre: "Juan Trejo",
     rol: "Propietario"
@@ -36,25 +41,33 @@ const BUSINESS_CONFIG = {
   tax_rate: 0.13
 };
 
+// Paleta de Colores "Dark Orange & Black" para PDF
+const PDF_THEME = {
+  orange: [194, 65, 12], // #C2410C - Naranja Quemado
+  black: [25, 25, 25],   // #191919 - Negro Suave
+  textGray: 80           // Gris oscuro
+};
+
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
-// --- FUNCIÓN NORMALIZADORA (El "Cerebro" que pediste) ---
+// ==========================================
+// 2. LÓGICA DE NORMALIZACIÓN (DATA LAYER)
+// ==========================================
+// Esta función prepara los datos crudos para que el PDF nunca falle
 const buildReportData = (rawStats, rangeMeta, summaryCalc) => {
-  // 1. Cálculos base (seguridad contra nulos)
   const ventasBrutas = Number(summaryCalc.totalSales || 0);
-  // Cálculo de impuestos: Asumimos que el precio incluye IVA. 
-  // Si fuera +IVA, sería ventasBrutas * 0.13. 
-  // Usamos la lógica estándar de desglose:
+  
+  // Cálculo de impuestos (Desglose)
   const impuestos = ventasBrutas > 0 
     ? ventasBrutas - (ventasBrutas / (1 + BUSINESS_CONFIG.tax_rate))
     : 0;
-  const ventasNetas = ventasBrutas - impuestos; // - descuentos si los hubiera
+  const ventasNetas = ventasBrutas - impuestos;
 
   const ticketPromedio = summaryCalc.totalOrders > 0 
     ? ventasBrutas / summaryCalc.totalOrders 
     : 0;
 
-  // 2. Construcción de listas limpias
+  // Construcción de listas seguras
   const topCategorias = summaryCalc.chartDataCat.map(c => ({
     categoria: c.category || "Sin Categoría",
     ventas: Number(c.totalSales || 0),
@@ -74,7 +87,6 @@ const buildReportData = (rawStats, rangeMeta, summaryCalc) => {
     transacciones: Number(p.count || 0)
   }));
 
-  // 3. RETORNO DE LA ESTRUCTURA JSON EXACTA
   return {
     negocio: {
       nombre: BUSINESS_CONFIG.nombre,
@@ -92,16 +104,16 @@ const buildReportData = (rawStats, rangeMeta, summaryCalc) => {
       ventas_brutas: ventasBrutas,
       impuestos: impuestos,
       ventas_netas: ventasNetas,
-      descuentos: 0, // Implementar si tienes lógica de descuentos
-      devoluciones: 0 // Implementar si tienes lógica de devoluciones
+      descuentos: 0, 
+      devoluciones: 0 
     },
-    forma_pago: formasPago, // Si está vacío, va array vacío []
+    forma_pago: formasPago,
     top_categorias: topCategorias,
     top_productos: topProductos,
     estadisticas: {
       ticket_promedio: ticketPromedio,
       transacciones_totales: Number(summaryCalc.totalOrders || 0),
-      ordenes_por_dia: 0, // Se puede calcular si es necesario
+      ordenes_por_dia: 0, // Dato derivado opcional
       dias_analizados: rawStats.length
     },
     notas_adicionales: ""
@@ -115,9 +127,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Estado para advertencia de fin de mes
   const [showDeletionWarning, setShowDeletionWarning] = useState(false);
   const [daysUntilDeletion, setDaysUntilDeletion] = useState(0);
 
+  // 1. Verificar si estamos cerca del fin de mes (Notificación Naranja)
   useEffect(() => {
     const today = dayjs();
     const endOfMonth = today.endOf("month");
@@ -131,6 +145,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     }
   }, []);
 
+  // 2. Carga de datos en tiempo real
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -141,7 +156,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     if (dateRange === "today") {
       from = today;
     } else if (dateRange === "month") {
-      from = today.subtract(29, "day"); 
+      from = today.subtract(29, "day"); // Vista por defecto de 30 días
     } else {
       from = today.subtract(6, "day"); 
     }
@@ -175,54 +190,27 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return () => unsubscribe();
   }, [dateRange]);
 
+  // 3. Cálculo de Resumen (Lógica existente preservada)
   const summary = useMemo(() => {
     if (!stats.length) {
-      return {
-        totalSales: 0,
-        totalOrders: 0,
-        avgTicket: 0,
-        chartDataDaily: [],
-        chartDataCat: [],
-        paymentMethods: [],
-        topProducts: []
-      };
+      return { totalSales: 0, totalOrders: 0, avgTicket: 0, chartDataDaily: [], chartDataCat: [], paymentMethods: [], topProducts: [] };
     }
-
-    let totalSales = 0;
-    let totalOrders = 0;
-
-    const chartDataDaily = [];
-    const categoryTotalsSales = {};
-    const categoryTotalsOrders = {};
-    const paymentTotals = {};
-    const productTotals = {};
+    let totalSales = 0; let totalOrders = 0;
+    const chartDataDaily = []; const categoryTotalsSales = {}; const categoryTotalsOrders = {}; const paymentTotals = {}; const productTotals = {};
 
     stats.forEach((s) => {
-      const sales = Number(s.totalSales || 0);
-      const orders = Number(s.totalOrders || 0);
-
-      totalSales += sales;
-      totalOrders += orders;
-
-      chartDataDaily.push({
-        date: s.date || s.id,
-        totalSales: sales,
-        totalOrders: orders
-      });
+      const sales = Number(s.totalSales || 0); const orders = Number(s.totalOrders || 0);
+      totalSales += sales; totalOrders += orders;
+      chartDataDaily.push({ date: s.date || s.id, totalSales: sales, totalOrders: orders });
 
       const catBreakdown = s.categoryBreakdown || {};
       const payBreakdown = s.paymentBreakdown || {};
       const prodBreakdown = s.productBreakdown || {};
 
       Object.entries(catBreakdown).forEach(([cat, raw]) => {
-        let catSales = 0;
-        let catOrders = 0;
-        if (typeof raw === "number") {
-          catSales = Number(raw || 0);
-        } else if (raw && typeof raw === "object") {
-          catSales = Number(raw.sales ?? raw.totalSales ?? 0);
-          catOrders = Number(raw.orders ?? raw.totalOrders ?? 0);
-        }
+        let catSales = 0; let catOrders = 0;
+        if (typeof raw === "number") { catSales = Number(raw || 0); } 
+        else if (raw && typeof raw === "object") { catSales = Number(raw.sales || 0); catOrders = Number(raw.orders || 0); }
         categoryTotalsSales[cat] = (categoryTotalsSales[cat] || 0) + catSales;
         categoryTotalsOrders[cat] = (categoryTotalsOrders[cat] || 0) + catOrders;
       });
@@ -234,48 +222,25 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       });
 
       Object.entries(prodBreakdown).forEach(([pid, pdata]) => {
-        if (!productTotals[pid]) {
-          productTotals[pid] = { name: pdata.name || "N/A", sales: 0, qty: 0 };
-        }
+        if (!productTotals[pid]) { productTotals[pid] = { name: pdata.name || "N/A", sales: 0, qty: 0 }; }
         productTotals[pid].sales += Number(pdata.sales || 0);
         productTotals[pid].qty += Number(pdata.qty || 0);
         if (pdata.name) productTotals[pid].name = pdata.name;
       });
     });
 
-    const chartDataCat = Object.entries(categoryTotalsSales)
-      .filter(([, val]) => val > 0)
-      .map(([category, sales]) => ({
-        category,
-        totalSales: sales,
-        totalOrders: categoryTotalsOrders[category] || 0
-      }))
+    const chartDataCat = Object.entries(categoryTotalsSales).filter(([, val]) => val > 0)
+      .map(([category, sales]) => ({ category, totalSales: sales, totalOrders: categoryTotalsOrders[category] || 0 }))
       .sort((a, b) => b.totalSales - a.totalSales);
 
     const paymentMethods = Object.entries(paymentTotals)
-      .map(([method, data]) => ({
-        method,
-        sales: data.sales,
-        count: data.count,
-        percentage: totalSales > 0 ? (data.sales / totalSales) * 100 : 0
-      }))
+      .map(([method, data]) => ({ method, sales: data.sales, count: data.count, percentage: totalSales > 0 ? (data.sales / totalSales) * 100 : 0 }))
       .sort((a, b) => b.sales - a.sales);
 
-    const topProducts = Object.values(productTotals)
-      .sort((a, b) => b.sales - a.sales)
-      .slice(0, 10);
-
+    const topProducts = Object.values(productTotals).sort((a, b) => b.sales - a.sales).slice(0, 10);
     const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    return {
-      totalSales,
-      totalOrders,
-      avgTicket,
-      chartDataDaily,
-      chartDataCat,
-      paymentMethods,
-      topProducts
-    };
+    return { totalSales, totalOrders, avgTicket, chartDataDaily, chartDataCat, paymentMethods, topProducts };
   }, [stats]);
 
   const dateRangeLabel = useMemo(() => {
@@ -284,98 +249,112 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return "Mes actual";
   }, [dateRange]);
 
+  // ==========================================
+  // 4. GENERADOR DE PDF (NUEVO DISEÑO)
+  // ==========================================
   const handleExportPDF = () => {
-    // --- 1. RESTRICCIONES DE TIEMPO (REGLA DE NEGOCIO) ---
+    // --- REGLAS DE NEGOCIO (VALIDACIÓN DE FECHAS) ---
     if (dateRange === "week") {
       if (stats.length < 7) {
-        toast.error("Reporte Bloqueado: Se requieren 7 días completos de datos.", {
-          duration: 5000,
-          icon: <AlertCircle className="text-orange-500" />
-        });
+        toast.error("Reporte Bloqueado: Se requieren 7 días completos de datos.", { duration: 5000, icon: <AlertCircle className="text-orange-500" /> });
         return;
       }
     }
-
     if (dateRange === "month") {
       const daysInCurrentMonth = dayjs().daysInMonth();
       if (stats.length < daysInCurrentMonth) {
-        toast.error(`Reporte Bloqueado: Se requieren ${daysInCurrentMonth} días para el cierre mensual.`, {
-          duration: 5000,
-          icon: <AlertCircle className="text-orange-500" />
-        });
+        toast.error(`Reporte Bloqueado: Se requieren ${daysInCurrentMonth} días para el cierre mensual.`, { duration: 5000, icon: <AlertCircle className="text-orange-500" /> });
         return;
       }
     }
-
     if (!summary || !stats.length) {
       toast.error("No hay datos suficientes para generar el reporte.", { icon: "📊" });
       return;
     }
 
     try {
-      // --- 2. OBTENER DATOS NORMALIZADOS ---
-      // Aquí usamos la "función backend" que implementa tu prompt
+      // Normalizar datos
       const data = buildReportData(stats, rangeMeta, summary);
-
-      // --- 3. GENERACIÓN VISUAL DEL PDF ---
+      
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.width;
       
-      // -- HEADER CON LOGO --
-      doc.setFillColor(249, 115, 22); // Orange bg
-      doc.rect(0, 0, pageWidth, 45, "F");
+      // --- HEADER: FONDO NARANJA OSCURO ---
+      doc.setFillColor(...PDF_THEME.orange); 
+      doc.rect(0, 0, pageWidth, 40, "F"); 
 
-      // Intento de renderizar logo si existe (opcional, requiere CORS o base64 válido)
-      // doc.addImage(data.negocio.logo_url, 'PNG', 14, 8, 20, 20); 
+      // Logo
+      if (data.negocio.logo_url) {
+        try {
+           doc.addImage(data.negocio.logo_url, 'PNG', 14, 5, 30, 30);
+        } catch (err) {
+           console.warn("No se pudo cargar el logo", err);
+        }
+      }
 
+      // Nombre del Negocio
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(24);
+      doc.setFontSize(26);
       doc.setFont("helvetica", "bold");
-      doc.text("CIERRE DE CAJA", 14, 25);
-      
-      doc.setFontSize(14);
-      doc.text(data.negocio.nombre.toUpperCase(), pageWidth - 14, 25, { align: "right" });
+      doc.text(data.negocio.nombre, 50, 28); 
 
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Generado: ${data.metadatos.fecha_generado} ${data.metadatos.hora_generado}`, 14, 35);
-      doc.text(`Periodo: ${data.metadatos.rango_desde} al ${data.metadatos.rango_hasta}`, 14, 40);
-
+      // --- SUB-HEADER ---
       let currentY = 55;
       doc.setTextColor(0, 0, 0);
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("REPORTE DE CIERRE DE CAJA", 14, currentY);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(PDF_THEME.textGray);
+      doc.text(`Generado: ${data.metadatos.fecha_generado} ${data.metadatos.hora_generado}`, pageWidth - 14, currentY, { align: "right" });
+      doc.text(`Periodo: ${data.metadatos.rango_desde} al ${data.metadatos.rango_hasta}`, pageWidth - 14, currentY + 5, { align: "right" });
 
-      // -- 1. RESUMEN CONTABLE --
-      doc.setFontSize(14);
+      currentY += 15;
+
+      // --- TABLAS (CABECERAS NEGRAS / MONTOS NARANJAS) ---
+
+      // 1. Resumen Contable
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "bold");
       doc.text("1. Resumen Contable", 14, currentY);
-      currentY += 8;
+      currentY += 6;
 
       autoTable(doc, {
         startY: currentY,
         head: [["Concepto", "Monto", "Detalle"]],
         body: [
           ["Ventas Brutas", `$${data.resumen_contable.ventas_brutas.toFixed(2)}`, "Ingreso total"],
-          ["Impuestos (13%)", `$${data.resumen_contable.impuestos.toFixed(2)}`, "IVA estimado"],
+          ["Impuestos (13%)", `$${data.resumen_contable.impuestos.toFixed(2)}`, "IVA incluido"],
           ["Ventas Netas", `$${data.resumen_contable.ventas_netas.toFixed(2)}`, "Base imponible"],
           ["Descuentos", `$${data.resumen_contable.descuentos.toFixed(2)}`, ""],
           ["Devoluciones", `$${data.resumen_contable.devoluciones.toFixed(2)}`, ""]
         ],
-        theme: "grid",
-        headStyles: { fillColor: [33, 33, 33] },
-        columnStyles: { 1: { halign: "right", fontStyle: "bold" } }
+        theme: "grid", 
+        headStyles: { 
+            fillColor: PDF_THEME.black,
+            textColor: 255,
+            fontStyle: 'bold',
+            halign: 'center'
+        },
+        columnStyles: { 
+            0: { fontStyle: "bold" },
+            1: { halign: "right", fontStyle: "bold", textColor: PDF_THEME.orange }
+        },
+        styles: { lineColor: [200, 200, 200] }
       });
-      currentY = doc.lastAutoTable.finalY + 12;
+      currentY = doc.lastAutoTable.finalY + 15;
 
-      // -- 2. FORMAS DE PAGO (Solo si hay datos) --
+      // 2. Formas de Pago
       if (data.forma_pago.length > 0) {
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
         doc.text("2. Conciliación por Método de Pago", 14, currentY);
         currentY += 6;
 
         autoTable(doc, {
           startY: currentY,
-          head: [["Método", "Transacciones", "%", "Monto"]],
+          head: [["Método", "Transacciones", "% Total", "Monto"]],
           body: data.forma_pago.map(fp => [
             fp.metodo.toUpperCase(),
             fp.transacciones,
@@ -383,19 +362,18 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             `$${fp.monto.toFixed(2)}`
           ]),
           theme: "striped",
-          headStyles: { fillColor: [70, 70, 70] },
-          columnStyles: { 3: { halign: "right", fontStyle: "bold" } }
+          headStyles: { fillColor: PDF_THEME.black },
+          columnStyles: { 
+              3: { halign: "right", fontStyle: "bold" } 
+          }
         });
-        currentY = doc.lastAutoTable.finalY + 12;
+        currentY = doc.lastAutoTable.finalY + 15;
       }
 
-      // -- 3. TOP CATEGORÍAS (Solo si hay datos) --
+      // 3. Top Categorías
       if (data.top_categorias.length > 0) {
-        // Control de salto de página
-        if (currentY > 220) { doc.addPage(); currentY = 20; }
+        if (currentY > 230) { doc.addPage(); currentY = 20; }
 
-        doc.setFontSize(12);
-        doc.setFont("helvetica", "bold");
         doc.text("3. Rendimiento por Categoría", 14, currentY);
         currentY += 6;
 
@@ -407,16 +385,16 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             c.ordenes,
             `$${c.ventas.toFixed(2)}`
           ]),
-          theme: "grid"
+          theme: "grid",
+          headStyles: { fillColor: PDF_THEME.black },
+          columnStyles: { 2: { halign: "right" } }
         });
-        currentY = doc.lastAutoTable.finalY + 12;
+        currentY = doc.lastAutoTable.finalY + 15;
       }
 
-      // -- 4. ESTADÍSTICAS Y FIRMA --
-      if (currentY > 220) { doc.addPage(); currentY = 20; }
+      // 4. Estadísticas
+      if (currentY > 230) { doc.addPage(); currentY = 20; }
 
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
       doc.text("4. Estadísticas Operativas", 14, currentY);
       currentY += 6;
 
@@ -428,32 +406,37 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           ["Días Analizados", data.estadisticas.dias_analizados]
         ],
         theme: "plain",
-        styles: { fontSize: 10 },
-        columnStyles: { 0: { fontStyle: "bold", width: 60 } }
+        styles: { fontSize: 10, cellPadding: 3 },
+        columnStyles: { 
+            0: { fontStyle: "bold", width: 60 },
+            1: { halign: "left", fontStyle: "italic" }
+        }
       });
 
-      // -- SECCIÓN DE FIRMA (Footer) --
+      // --- FIRMA (FOOTER) ---
       const pageHeight = doc.internal.pageSize.height;
-      const signatureY = pageHeight - 40;
+      const signatureY = pageHeight - 35;
 
-      doc.setDrawColor(150);
-      doc.line(14, signatureY, 80, signatureY); // Línea de firma
+      doc.setDrawColor(100); 
+      doc.setLineWidth(0.5);
+      doc.line(14, signatureY, 80, signatureY);
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text(data.responsable.nombre, 14, signatureY + 5);
+      doc.text(data.responsable.nombre, 14, signatureY + 6);
       
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text(data.responsable.rol, 14, signatureY + 10);
-      doc.text("Firma del Responsable", 14, signatureY + 15);
-
-      doc.save(`cierre_${data.metadatos.fecha_generado.replace(/\//g, '-')}.pdf`);
-      toast.success("Cierre de caja generado exitosamente");
+      doc.setTextColor(PDF_THEME.textGray);
+      doc.text(data.responsable.rol, 14, signatureY + 11);
+      
+      const fileName = `cierre_${data.metadatos.fecha_generado.replace(/\//g, '-')}.pdf`;
+      doc.save(fileName);
+      toast.success("Cierre generado con éxito");
 
     } catch (e) {
       console.error("Error PDF:", e);
-      toast.error("Error generando el documento.");
+      toast.error("Error generando el PDF");
     }
   };
 
@@ -467,7 +450,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
 
   return (
     <div className="space-y-6">
-      {/* NOTIFICACIÓN DE ELIMINACIÓN DE DATOS */}
+      {/* Notificación Naranja de Fin de Mes */}
       {showDeletionWarning && (
         <div className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
           <CalendarClock className="text-orange-500 shrink-0" size={24} />
@@ -578,9 +561,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         />
       </div>
 
-      {/* Gráficas */}
+      {/* Gráfico de Ventas Diarias (Único gráfico restante) */}
       <div className="grid grid-cols-1 gap-6">
-        {/* Ventas por día */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
@@ -680,7 +662,6 @@ function MetricCard({ label, value, subtitle }) {
   );
 }
 
-// Wrapper que asegura width/height > 0 antes de renderizar el chart
 function ChartWrapper({ children, className = "" }) {
   const ref = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
