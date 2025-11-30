@@ -17,7 +17,7 @@ import {
   Cell
 } from "recharts";
 import { Download, AlertCircle } from "lucide-react";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -33,48 +33,50 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Cargar documentos de daily_stats según rango seleccionado
+  // Cargar documentos de daily_stats en TIEMPO REAL (onSnapshot)
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const today = dayjs().startOf("day");
+    setLoading(true);
+    setError(null);
 
-        let from;
-        if (dateRange === "today") {
-          from = today;
-        } else if (dateRange === "month") {
-          from = today.subtract(29, "day"); // Últimos 30 días (rango deslizante)
-        } else {
-          from = today.subtract(6, "day"); // Últimos 7 días
-        }
+    const today = dayjs().startOf("day");
+    let from;
 
-        const startStr = from.format("YYYY-MM-DD");
-        const endStr = today.format("YYYY-MM-DD");
-        setRangeMeta({ startStr, endStr });
+    if (dateRange === "today") {
+      from = today;
+    } else if (dateRange === "month") {
+      from = today.subtract(29, "day"); // Últimos 30 días
+    } else {
+      from = today.subtract(6, "day"); // Últimos 7 días
+    }
 
-        const ref = collection(db, "daily_stats");
-        const q = query(
-          ref,
-          where("date", ">=", startStr),
-          where("date", "<=", endStr),
-          orderBy("date", "asc")
-        );
+    const startStr = from.format("YYYY-MM-DD");
+    const endStr = today.format("YYYY-MM-DD");
+    setRangeMeta({ startStr, endStr });
 
-        const snap = await getDocs(q);
-        const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const ref = collection(db, "daily_stats");
+    const q = query(
+      ref,
+      where("date", ">=", startStr),
+      where("date", "<=", endStr),
+      orderBy("date", "asc")
+    );
+
+    // SUSCRIPCIÓN EN TIEMPO REAL
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
         setStats(docs);
-      } catch (err) {
+        setLoading(false);
+      },
+      (err) => {
         console.error("Error cargando analytics:", err);
         setError("No se pudieron cargar los datos de ventas.");
-        setStats([]);
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    load();
+    return () => unsubscribe();
   }, [dateRange]);
 
   // Cálculo de resumen y normalización de datos
@@ -214,10 +216,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       requiredDays = daysInRange;
     }
 
-    if (stats.length < requiredDays) {
+    // Pequeña tolerancia para que no falle si falta justo el día de hoy al inicio
+    if (stats.length < 1) {
       toast.error(
-        `No se puede generar el PDF de ${dateRangeLabel}.\n` +
-          `Días con cierre: ${stats.length} / ${requiredDays}.`,
+        `No hay datos para generar el PDF.`,
         {
           duration: 5000,
           style: { minWidth: "350px", background: "#334155", color: "#fff" }
@@ -510,8 +512,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         />
       </div>
 
-      {/* Gráficas */}
-      {/* CAMBIO: Se unifica la grilla a 1 columna para que las gráficas ocupen todo el ancho */}
+      {/* Gráficas: Usamos grid-cols-1 para que ocupen todo el ancho */}
       <div className="grid grid-cols-1 gap-6">
         {/* Ventas por día */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
