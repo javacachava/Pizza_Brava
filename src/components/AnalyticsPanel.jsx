@@ -1,3 +1,4 @@
+// src/components/AnalyticsPanel.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import {
   BarChart,
@@ -72,7 +73,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     load();
   }, [dateRange]);
 
-  // Agregados
+  // Cálculo de resumen y normalización de datos
   const summary = useMemo(() => {
     if (!stats.length) {
       return {
@@ -86,8 +87,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
 
     let totalSales = 0;
     let totalOrders = 0;
+
     const chartDataDaily = [];
-    const categoryTotals = {};
+    const categoryTotalsSales = {};  // Acumulador ventas por categoría
+    const categoryTotalsOrders = {}; // Acumulador órdenes por categoría
 
     stats.forEach((s) => {
       const sales = Number(s.totalSales || 0);
@@ -102,16 +105,41 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         totalOrders: orders
       });
 
+      // Lógica robusta para categoryBreakdown
       const breakdown = s.categoryBreakdown || {};
-      Object.entries(breakdown).forEach(([cat, val]) => {
-        categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(val || 0);
+
+      Object.entries(breakdown).forEach(([cat, raw]) => {
+        let catSales = 0;
+        let catOrders = 0;
+
+        if (typeof raw === "number") {
+          // Caso simple: "Pizzas": 150.00
+          catSales = Number(raw || 0);
+        } else if (raw && typeof raw === "object") {
+          // Caso detallado: "Pizzas": { totalSales: 150, totalOrders: 10 }
+          // Soporta keys 'sales' o 'totalSales', 'orders' o 'totalOrders'
+          catSales = Number(raw.sales ?? raw.totalSales ?? 0);
+          catOrders = Number(raw.orders ?? raw.totalOrders ?? 0);
+        }
+
+        // Protección contra NaN
+        if (!Number.isFinite(catSales)) catSales = 0;
+        if (!Number.isFinite(catOrders)) catOrders = 0;
+
+        categoryTotalsSales[cat] = (categoryTotalsSales[cat] || 0) + catSales;
+        categoryTotalsOrders[cat] = (categoryTotalsOrders[cat] || 0) + catOrders;
       });
     });
 
-    const chartDataCat = Object.entries(categoryTotals).map(([category, val]) => ({
-      category,
-      totalSales: val
-    }));
+    // Convertir objeto de acumulados a array para Recharts
+    const chartDataCat = Object.entries(categoryTotalsSales)
+      .filter(([, val]) => val > 0) // Opcional: ocultar categorías con $0
+      .map(([category, sales]) => ({
+        category,
+        totalSales: sales,
+        totalOrders: categoryTotalsOrders[category] || 0
+      }))
+      .sort((a, b) => b.totalSales - a.totalSales); // Ordenar por ventas mayor a menor
 
     const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
@@ -124,54 +152,83 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return "Últimos 30 días";
   }, [dateRange]);
 
+  // Generación de PDF
   const handleExportPDF = () => {
-    if (!summary || !rangeMeta.startStr) return;
+    if (!summary || !stats.length) {
+      alert("No hay datos para exportar.");
+      return;
+    }
 
-    const doc = new jsPDF();
+    try {
+      const doc = new jsPDF();
 
-    doc.setFontSize(16);
-    doc.text("Reporte de ventas", 14, 18);
+      // Encabezado
+      doc.setFontSize(18);
+      doc.text("Reporte de Ventas - Pizza Brava", 14, 20);
 
-    doc.setFontSize(10);
-    doc.text(
-      `Rango: ${dateRangeLabel} (${rangeMeta.startStr} a ${rangeMeta.endStr})`,
-      14,
-      26
-    );
+      doc.setFontSize(11);
+      doc.text(`Generado: ${dayjs().format("DD/MM/YYYY HH:mm")}`, 14, 28);
+      doc.text(
+        `Rango: ${dateRangeLabel} (${rangeMeta.startStr} al ${rangeMeta.endStr})`,
+        14,
+        34
+      );
 
-    // Tabla de resumen
-    doc.autoTable({
-      startY: 32,
-      head: [["Ventas Totales", "Órdenes", "Ticket Promedio"]],
-      body: [
-        [
-          `$${summary.totalSales.toFixed(2)}`,
-          summary.totalOrders,
-          `$${summary.avgTicket.toFixed(2)}`
-        ]
-      ]
-    });
-
-    // Tabla por día
-    if (summary.chartDataDaily.length) {
+      // 1. Tabla Resumen General
       doc.autoTable({
-        startY: doc.lastAutoTable.finalY + 10,
-        head: [["Fecha", "Ventas", "Órdenes"]],
+        startY: 40,
+        head: [["Ventas Totales", "Órdenes", "Ticket Promedio"]],
+        body: [
+          [
+            `$${summary.totalSales.toFixed(2)}`,
+            summary.totalOrders,
+            `$${summary.avgTicket.toFixed(2)}`
+          ]
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [249, 115, 22] } // Naranja corporativo
+      });
+
+      // 2. Tabla Ventas por Categoría
+      if (summary.chartDataCat.length > 0) {
+        doc.text("Desglose por Categoría", 14, doc.lastAutoTable.finalY + 10);
+        
+        doc.autoTable({
+          startY: doc.lastAutoTable.finalY + 15,
+          head: [["Categoría", "Ventas ($)", "Órdenes (aprox)"]],
+          body: summary.chartDataCat.map((row) => [
+            row.category,
+            `$${row.totalSales.toFixed(2)}`,
+            row.totalOrders > 0 ? row.totalOrders : "-"
+          ]),
+          theme: 'striped'
+        });
+      }
+
+      // 3. Tabla Detalle Diario
+      doc.text("Detalle Diario", 14, doc.lastAutoTable.finalY + 10);
+      
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 15,
+        head: [["Fecha", "Ventas ($)", "Órdenes"]],
         body: summary.chartDataDaily.map((row) => [
           row.date,
           `$${row.totalSales.toFixed(2)}`,
           row.totalOrders
         ])
       });
-    }
 
-    doc.save(`reporte_ventas_${dayjs().format("YYYY-MM-DD")}.pdf`);
+      doc.save(`ventas_${rangeMeta.startStr}_${rangeMeta.endStr}.pdf`);
+    } catch (e) {
+      console.error("Error generando PDF", e);
+      alert("Error al generar el PDF. Verifica la consola.");
+    }
   };
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        Cargando datos agregados...
+      <div className="p-8 text-center text-slate-500 animate-pulse">
+        Cargando estadísticas...
       </div>
     );
   }
@@ -207,7 +264,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
             <button
               onClick={() => setDateRange("today")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "today"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-600 hover:bg-white"
@@ -217,7 +274,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             </button>
             <button
               onClick={() => setDateRange("week")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "week"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-600 hover:bg-white"
@@ -227,7 +284,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             </button>
             <button
               onClick={() => setDateRange("month")}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold ${
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
                 dateRange === "month"
                   ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-600 hover:bg-white"
@@ -240,7 +297,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           {enablePrint && (
             <button
               onClick={handleExportPDF}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-900 text-white hover:bg-slate-800 shadow-sm transition-colors"
             >
               <Download size={14} />
               Exportar PDF
@@ -254,12 +311,12 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         <MetricCard
           label="Ventas totales"
           value={`$${summary.totalSales.toFixed(2)}`}
-          subtitle="Suma de totalSales en daily_stats"
+          subtitle="Facturación bruta en el periodo"
         />
         <MetricCard
           label="Órdenes"
           value={summary.totalOrders}
-          subtitle="Cantidad de órdenes procesadas"
+          subtitle="Cantidad de tickets generados"
         />
         <MetricCard
           label="Ticket promedio"
@@ -268,7 +325,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
               ? `$${summary.avgTicket.toFixed(2)}`
               : "$0.00"
           }
-          subtitle="Ventas / órdenes"
+          subtitle="Promedio de venta por orden"
         />
       </div>
 
@@ -277,36 +334,43 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         {/* Ventas por día */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-800 mb-3">
-            Ventas por día
+            Tendencia de ventas
           </h3>
           <div className="h-72">
             {summary.chartDataDaily.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={summary.chartDataDaily}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "#6b7280" }}
                     tickMargin={8}
-                    stroke="#6b7280"
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <YAxis
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 11, fill: "#6b7280" }}
                     tickMargin={4}
-                    stroke="#6b7280"
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => `$${val}`}
                   />
                   <Tooltip
+                    cursor={{ fill: "#f3f4f6" }}
+                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                     formatter={(value, name) =>
                       name === "totalOrders"
                         ? [`${value}`, "Órdenes"]
                         : [`$${Number(value).toFixed(2)}`, "Ventas"]
                     }
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ paddingTop: "10px" }} />
                   <Bar
                     dataKey="totalSales"
-                    name="Ventas"
+                    name="Ventas ($)"
+                    fill="#ea580c"
                     radius={[4, 4, 0, 0]}
+                    barSize={40}
                   />
                 </BarChart>
               </ResponsiveContainer>
@@ -333,9 +397,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                     nameKey="category"
                     cx="50%"
                     cy="50%"
+                    innerRadius={60}
                     outerRadius={80}
-                    label={({ category, percent }) =>
-                      `${category} ${(percent * 100).toFixed(0)}%`
+                    paddingAngle={5}
+                    label={({ percent }) =>
+                      `${(percent * 100).toFixed(0)}%`
                     }
                   >
                     {summary.chartDataCat.map((entry, index) => (
@@ -347,13 +413,22 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                   </Pie>
                   <Tooltip
                     formatter={(val) => `$${Number(val).toFixed(2)}`}
+                    contentStyle={{ borderRadius: "8px" }}
                   />
-                  <Legend />
+                  <Legend 
+                    layout="horizontal" 
+                    verticalAlign="bottom" 
+                    align="center"
+                    wrapperStyle={{ fontSize: "11px" }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                Sin datos en este rango.
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 text-sm px-4 text-center">
+                <p>Sin desglose por categoría.</p>
+                <p className="text-[10px] mt-1 opacity-70">
+                  Las nuevas órdenes aparecerán aquí automáticamente.
+                </p>
               </div>
             )}
           </div>
@@ -365,15 +440,17 @@ export default function AnalyticsPanel({ enablePrint = false }) {
 
 function MetricCard({ label, value, subtitle }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col justify-between">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition-shadow">
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
           {label}
         </p>
-        <p className="text-2xl font-black text-slate-900">{value}</p>
+        <p className="text-3xl font-black text-slate-900 tracking-tight">{value}</p>
       </div>
       {subtitle && (
-        <p className="mt-2 text-[11px] text-slate-500">{subtitle}</p>
+        <p className="mt-3 text-[11px] font-medium text-slate-500 bg-slate-50 inline-block px-2 py-1 rounded-md self-start">
+          {subtitle}
+        </p>
       )}
     </div>
   );
