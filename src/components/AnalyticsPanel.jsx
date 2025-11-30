@@ -41,7 +41,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         if (dateRange === "today") {
           from = today;
         } else if (dateRange === "month") {
-          from = today.subtract(29, "day"); // Últimos 30 días
+          from = today.subtract(29, "day"); // Últimos 30 días (rango deslizante)
         } else {
           from = today.subtract(6, "day"); // Últimos 7 días
         }
@@ -81,7 +81,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         totalOrders: 0,
         avgTicket: 0,
         chartDataDaily: [],
-        chartDataCat: []
+        chartDataCat: [],
+        paymentMethods: [],
+        topProducts: []
       };
     }
 
@@ -89,8 +91,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     let totalOrders = 0;
 
     const chartDataDaily = [];
-    const categoryTotalsSales = {};  // Acumulador ventas por categoría
-    const categoryTotalsOrders = {}; // Acumulador órdenes por categoría
+    const categoryTotalsSales = {};
+    const categoryTotalsOrders = {};
+    const paymentTotals = {};
+    const productTotals = {}; // id -> { name, sales, qty }
 
     stats.forEach((s) => {
       const sales = Number(s.totalSales || 0);
@@ -105,45 +109,78 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         totalOrders: orders
       });
 
-      // Lógica robusta para categoryBreakdown
-      const breakdown = s.categoryBreakdown || {};
+      const catBreakdown = s.categoryBreakdown || {};
+      const payBreakdown = s.paymentBreakdown || {};
+      const prodBreakdown = s.productBreakdown || {};
 
-      Object.entries(breakdown).forEach(([cat, raw]) => {
+      // Categorías
+      Object.entries(catBreakdown).forEach(([cat, raw]) => {
         let catSales = 0;
         let catOrders = 0;
-
         if (typeof raw === "number") {
-          // Caso simple: "Pizzas": 150.00
           catSales = Number(raw || 0);
         } else if (raw && typeof raw === "object") {
-          // Caso detallado: "Pizzas": { totalSales: 150, totalOrders: 10 }
-          // Soporta keys 'sales' o 'totalSales', 'orders' o 'totalOrders'
           catSales = Number(raw.sales ?? raw.totalSales ?? 0);
           catOrders = Number(raw.orders ?? raw.totalOrders ?? 0);
         }
-
-        // Protección contra NaN
         if (!Number.isFinite(catSales)) catSales = 0;
         if (!Number.isFinite(catOrders)) catOrders = 0;
 
         categoryTotalsSales[cat] = (categoryTotalsSales[cat] || 0) + catSales;
         categoryTotalsOrders[cat] = (categoryTotalsOrders[cat] || 0) + catOrders;
       });
+
+      // Métodos de Pago
+      Object.entries(payBreakdown).forEach(([method, data]) => {
+        if (!paymentTotals[method]) paymentTotals[method] = { sales: 0, count: 0 };
+        paymentTotals[method].sales += Number(data.sales || 0);
+        paymentTotals[method].count += Number(data.count || 0);
+      });
+
+      // Top Productos
+      Object.entries(prodBreakdown).forEach(([pid, pdata]) => {
+        if (!productTotals[pid]) {
+          productTotals[pid] = { name: pdata.name || "N/A", sales: 0, qty: 0 };
+        }
+        productTotals[pid].sales += Number(pdata.sales || 0);
+        productTotals[pid].qty += Number(pdata.qty || 0);
+        if (pdata.name) productTotals[pid].name = pdata.name;
+      });
     });
 
-    // Convertir objeto de acumulados a array para Recharts
     const chartDataCat = Object.entries(categoryTotalsSales)
-      .filter(([, val]) => val > 0) // Opcional: ocultar categorías con $0
+      .filter(([, val]) => val > 0)
       .map(([category, sales]) => ({
         category,
         totalSales: sales,
         totalOrders: categoryTotalsOrders[category] || 0
       }))
-      .sort((a, b) => b.totalSales - a.totalSales); // Ordenar por ventas mayor a menor
+      .sort((a, b) => b.totalSales - a.totalSales);
+
+    const paymentMethods = Object.entries(paymentTotals)
+      .map(([method, data]) => ({
+        method,
+        sales: data.sales,
+        count: data.count,
+        percentage: totalSales > 0 ? (data.sales / totalSales) * 100 : 0
+      }))
+      .sort((a, b) => b.sales - a.sales);
+
+    const topProducts = Object.values(productTotals)
+      .sort((a, b) => b.sales - a.sales)
+      .slice(0, 10);
 
     const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    return { totalSales, totalOrders, avgTicket, chartDataDaily, chartDataCat };
+    return {
+      totalSales,
+      totalOrders,
+      avgTicket,
+      chartDataDaily,
+      chartDataCat,
+      paymentMethods,
+      topProducts
+    };
   }, [stats]);
 
   const dateRangeLabel = useMemo(() => {
@@ -152,73 +189,194 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return "Últimos 30 días";
   }, [dateRange]);
 
-  // Generación de PDF
+  // Generación de PDF PROFESIONAL
   const handleExportPDF = () => {
     if (!summary || !stats.length) {
       alert("No hay datos para exportar.");
       return;
     }
 
+    // --- Validación de días según rango ---
+    const daysInRange =
+      dayjs(rangeMeta.endStr).diff(dayjs(rangeMeta.startStr), "day") + 1;
+
+    let requiredDays = 1;
+    if (dateRange === "week") {
+      requiredDays = 7;
+    } else if (dateRange === "month") {
+      // aquí usamos el rango real (29, 30 o 31 días según corresponda)
+      requiredDays = daysInRange;
+    }
+
+    if (stats.length < requiredDays) {
+      alert(
+        `No se puede generar el PDF de ${dateRangeLabel}. ` +
+          `Días con cierre: ${stats.length} / ${requiredDays}.`
+      );
+      return;
+    }
+
     try {
       const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
 
-      // Encabezado
-      doc.setFontSize(18);
-      doc.text("Reporte de Ventas - Pizza Brava", 14, 20);
+      const TAX_RATE = 0.13; // 13% IVA
+      const taxAmount =
+        summary.totalSales > 0
+          ? summary.totalSales - summary.totalSales / (1 + TAX_RATE)
+          : 0;
+      const netSalesBase = summary.totalSales - taxAmount;
 
-      doc.setFontSize(11);
+      // --- HEADER ---
+      doc.setFillColor(249, 115, 22);
+      doc.rect(0, 0, pageWidth, 40, "F");
+
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      doc.text("REPORTE DE CIERRE", 14, 20);
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
       doc.text(`Generado: ${dayjs().format("DD/MM/YYYY HH:mm")}`, 14, 28);
       doc.text(
-        `Rango: ${dateRangeLabel} (${rangeMeta.startStr} al ${rangeMeta.endStr})`,
+        `Rango: ${rangeMeta.startStr} al ${rangeMeta.endStr} (${dateRangeLabel})`,
         14,
-        34
+        33
       );
 
-      // 1. Tabla Resumen General
+      doc.setTextColor(0, 0, 0);
+      let currentY = 50;
+
+      // --- 1. BLOQUE CONTABLE ---
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("1. Resumen Contable", 14, currentY);
+      currentY += 8;
+
       autoTable(doc, {
-        startY: 40,
-        head: [["Ventas Totales", "Órdenes", "Ticket Promedio"]],
+        startY: currentY,
+        head: [["Concepto", "Monto", "Notas"]],
         body: [
-          [
-            `$${summary.totalSales.toFixed(2)}`,
-            summary.totalOrders,
-            `$${summary.avgTicket.toFixed(2)}`
-          ]
+          ["Ventas Brutas", `$${summary.totalSales.toFixed(2)}`, "Total cobrado (Incl. Impuestos)"],
+          ["Impuestos (Estimado 13%)", `$${taxAmount.toFixed(2)}`, "IVA calculado sobre venta bruta"],
+          ["Ventas Netas", `$${netSalesBase.toFixed(2)}`, "Base imponible aprox."],
+          ["Descuentos / Promos", "$0.00", "No registrado en este periodo"],
+          ["Devoluciones", "$0.00", "No registrado en este periodo"]
         ],
         theme: "grid",
-        headStyles: { fillColor: [249, 115, 22] } // Naranja corporativo
+        headStyles: { fillColor: [50, 50, 50] },
+        columnStyles: {
+          1: { fontStyle: "bold", halign: "right" }
+        }
       });
+      currentY = doc.lastAutoTable.finalY + 10;
 
-      // 2. Tabla Ventas por Categoría
-      if (summary.chartDataCat.length > 0) {
-        doc.text("Desglose por Categoría", 14, doc.lastAutoTable.finalY + 10);
-
-        autoTable(doc, {
-          startY: doc.lastAutoTable.finalY + 15,
-          head: [["Categoría", "Ventas ($)", "Órdenes (aprox)"]],
-          body: summary.chartDataCat.map((row) => [
-            row.category,
-            `$${row.totalSales.toFixed(2)}`,
-            row.totalOrders > 0 ? row.totalOrders : "-"
-          ]),
-          theme: "striped"
-        });
-      }
-
-      // 3. Tabla Detalle Diario
-      doc.text("Detalle Diario", 14, doc.lastAutoTable.finalY + 10);
+      // Detalle Forma de Pago
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text("Detalle por Forma de Pago (Conciliación)", 14, currentY);
+      currentY += 5;
 
       autoTable(doc, {
-        startY: doc.lastAutoTable.finalY + 15,
-        head: [["Fecha", "Ventas ($)", "Órdenes"]],
-        body: summary.chartDataDaily.map((row) => [
-          row.date,
+        startY: currentY,
+        head: [["Método", "Ventas ($)", "% Total", "Operaciones"]],
+        body:
+          summary.paymentMethods.length > 0
+            ? summary.paymentMethods.map((p) => [
+                p.method.toUpperCase(),
+                `$${p.sales.toFixed(2)}`,
+                `${p.percentage.toFixed(1)}%`,
+                p.count
+              ])
+            : [["Sin datos", "$0.00", "0%", "0"]],
+        theme: "striped",
+        headStyles: { fillColor: [70, 70, 70] },
+        columnStyles: {
+          1: { halign: "right" },
+          2: { halign: "right" },
+          3: { halign: "center" }
+        }
+      });
+      currentY = doc.lastAutoTable.finalY + 15;
+
+      // --- 2. BLOQUE DE GESTIÓN ---
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("2. Indicadores de Gestión", 14, currentY);
+      currentY += 8;
+
+      // Top Categorías
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "normal");
+      doc.text("Top Categorías (Participación)", 14, currentY);
+      currentY += 5;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Categoría", "Ventas ($)", "Órdenes (aprox)"]],
+        body: summary.chartDataCat.map((row) => [
+          row.category,
           `$${row.totalSales.toFixed(2)}`,
           row.totalOrders
-        ])
+        ]),
+        theme: "grid"
       });
 
-      doc.save(`ventas_${rangeMeta.startStr}_${rangeMeta.endStr}.pdf`);
+      if (doc.lastAutoTable.finalY > 200) {
+        doc.addPage();
+        currentY = 20;
+      } else {
+        currentY = doc.lastAutoTable.finalY + 10;
+      }
+
+      // Top Productos
+      doc.text("Top 10 Productos Más Vendidos", 14, currentY);
+      currentY += 5;
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [["Producto", "Unidades", "Ventas ($)"]],
+        body:
+          summary.topProducts.length > 0
+            ? summary.topProducts.map((p) => [
+                p.name,
+                p.qty,
+                `$${p.sales.toFixed(2)}`
+              ])
+            : [["Sin datos de productos", "-", "-"]],
+        theme: "striped",
+        headStyles: { fillColor: [249, 115, 22] }
+      });
+      currentY = doc.lastAutoTable.finalY + 15;
+
+      // --- 3. BLOQUE ESTADÍSTICO ---
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("3. Estadísticas Operativas", 14, currentY);
+      currentY += 8;
+
+      const avgOrdersPerDay = (
+        summary.totalOrders / Math.max(1, daysInRange)
+      ).toFixed(1);
+
+      autoTable(doc, {
+        startY: currentY,
+        body: [
+          ["Ticket Promedio", `$${summary.avgTicket.toFixed(2)}`],
+          ["Órdenes Promedio / Día", avgOrdersPerDay],
+          ["Días analizados", daysInRange],
+          ["Total Transacciones", summary.totalOrders]
+        ],
+        theme: "plain",
+        styles: { fontSize: 10, cellPadding: 2 },
+        columnStyles: {
+          0: { fontStyle: "bold", width: 60 },
+          1: { halign: "left" }
+        }
+      });
+
+      doc.save(`cierre_caja_${rangeMeta.startStr}.pdf`);
     } catch (e) {
       console.error("Error generando PDF", e);
       alert("Error al generar el PDF. Verifica la consola.");
@@ -340,7 +498,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             {summary.chartDataDaily.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={summary.chartDataDaily}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="#e5e7eb"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 11, fill: "#6b7280" }}
@@ -357,7 +519,12 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                   />
                   <Tooltip
                     cursor={{ fill: "#f3f4f6" }}
-                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow:
+                        "0 4px 6px -1px rgb(0 0 0 / 0.1)"
+                    }}
                     formatter={(value, name) =>
                       name === "totalOrders"
                         ? [`${value}`, "Órdenes"]
@@ -415,9 +582,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                     formatter={(val) => `$${Number(val).toFixed(2)}`}
                     contentStyle={{ borderRadius: "8px" }}
                   />
-                  <Legend 
-                    layout="horizontal" 
-                    verticalAlign="bottom" 
+                  <Legend
+                    layout="horizontal"
+                    verticalAlign="bottom"
                     align="center"
                     wrapperStyle={{ fontSize: "11px" }}
                   />
@@ -445,7 +612,9 @@ function MetricCard({ label, value, subtitle }) {
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400 mb-1">
           {label}
         </p>
-        <p className="text-3xl font-black text-slate-900 tracking-tight">{value}</p>
+        <p className="text-3xl font-black text-slate-900 tracking-tight">
+          {value}
+        </p>
       </div>
       {subtitle && (
         <p className="mt-3 text-[11px] font-medium text-slate-500 bg-slate-50 inline-block px-2 py-1 rounded-md self-start">

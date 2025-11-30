@@ -1,4 +1,3 @@
-// src/hooks/useOrders.js
 import { useState } from "react";
 import {
   doc,
@@ -128,10 +127,33 @@ export function useOrders() {
         const todayStr = new Date().toISOString().split("T")[0];
         const statsRef = doc(db, "daily_stats", todayStr);
 
+        // Agregados por Categoría
         const categoryIncrements = {};
         itemsSnapshot.forEach((item) => {
           const field = `categoryBreakdown.${item.mainCategory}`;
           categoryIncrements[field] = increment(item.total);
+        });
+
+        // Agregados por Método de Pago
+        const payMethod = orderData.paymentMethod || "otro"; // 'efectivo', 'tarjeta', etc.
+        const payMethodSalesField = `paymentBreakdown.${payMethod}.sales`;
+        const payMethodCountField = `paymentBreakdown.${payMethod}.count`;
+
+        // Agregados por Producto (Top Products)
+        // Nota: Firestore tiene límite de escrituras por segundo en un doc, 
+        // si hay muchos items distintos podría ser pesado, pero para POS normal está bien.
+        const productIncrements = {};
+        itemsSnapshot.forEach((item) => {
+          // Usamos item.id (o nombre sanitizado) como key
+          // sanitize key for firestore map (no dots, slashes)
+          const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
+          const fieldSales = `productBreakdown.${safeId}.sales`;
+          const fieldQty = `productBreakdown.${safeId}.qty`;
+          const fieldName = `productBreakdown.${safeId}.name`; // Guardamos nombre para reporte
+          
+          productIncrements[fieldSales] = increment(item.total);
+          productIncrements[fieldQty] = increment(item.qty);
+          productIncrements[fieldName] = item.name; 
         });
 
         batch.set(
@@ -141,6 +163,9 @@ export function useOrders() {
             totalSales: increment(normalizedTotal),
             totalOrders: increment(1),
             ...categoryIncrements,
+            [payMethodSalesField]: increment(normalizedTotal),
+            [payMethodCountField]: increment(1),
+            ...productIncrements
           },
           { merge: true }
         );

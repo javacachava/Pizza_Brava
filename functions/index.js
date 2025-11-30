@@ -1,7 +1,3 @@
-/**
- * BACKEND SERVERLESS - PIZZA BRAVA
- * Stack: Node.js 20 (Recomendado)
- */
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const logger = require("firebase-functions/logger");
@@ -32,8 +28,6 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
         let flagReason = "";
 
         // B. Recalcular precios (Seguridad: Validar vs BD)
-        // Nota: Para "costo cero extremo" confiamos en los snapshots del array,
-        // pero validamos la matemática interna (qty * price = subtotal).
         if (order.itemsSnapshot && Array.isArray(order.itemsSnapshot)) {
             order.itemsSnapshot.forEach(item => {
                 const lineTotal = item.price * item.qty;
@@ -52,27 +46,44 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
         const batch = db.batch();
         const orderRef = db.collection('orders').doc(orderId);
 
-        // C. Actualizar Orden (Marcar como procesada y/o fraudulenta)
+        // C. Actualizar Orden
         batch.update(orderRef, {
             serverProcessedAt: FieldValue.serverTimestamp(),
             flagged: isFlagged,
             flagReason: isFlagged ? flagReason : FieldValue.delete(),
-            // Si hay error, corregimos el total "oficial" para reportes
             verifiedTotal: calculatedTotal 
         });
 
         // D. Actualizar Estadísticas Diarias (Atomic Increment)
-        // Esto garantiza que la contabilidad financiera sea EXACTA, aunque falle el internet del cliente
-        // Usamos la fecha de creación de la orden para asignar el día correcto
         const dateStr = order.createdAt.toDate().toISOString().split('T')[0]; 
         const statsRef = db.collection('daily_stats').doc(dateStr);
 
+        // 1. Categorías
         const categoryIncrements = {};
         if (order.itemsSnapshot) {
             order.itemsSnapshot.forEach(item => {
                 const catKey = `categoryBreakdown.${item.mainCategory || 'Otros'}`;
-                // Truco para crear objetos dinámicos de FieldValue
                 categoryIncrements[catKey] = FieldValue.increment(item.price * item.qty);
+            });
+        }
+
+        // 2. Métodos de Pago
+        const payMethod = order.paymentMethod || "otro"; 
+        const paySalesKey = `paymentBreakdown.${payMethod}.sales`;
+        const payCountKey = `paymentBreakdown.${payMethod}.count`;
+
+        // 3. Productos (Top Products)
+        const productIncrements = {};
+        if (order.itemsSnapshot) {
+            order.itemsSnapshot.forEach(item => {
+                const safeId = (item.id || "unknown").replace(/\//g, "_").replace(/\./g, "_");
+                const pSalesKey = `productBreakdown.${safeId}.sales`;
+                const pQtyKey = `productBreakdown.${safeId}.qty`;
+                const pNameKey = `productBreakdown.${safeId}.name`;
+                
+                productIncrements[pSalesKey] = FieldValue.increment(item.price * item.qty);
+                productIncrements[pQtyKey] = FieldValue.increment(item.qty);
+                productIncrements[pNameKey] = item.name; // overwrite name ensures it's set
             });
         }
 
@@ -81,7 +92,10 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
             totalSales: FieldValue.increment(calculatedTotal),
             totalOrders: FieldValue.increment(1),
             lastUpdated: FieldValue.serverTimestamp(),
-            ...categoryIncrements
+            ...categoryIncrements,
+            [paySalesKey]: FieldValue.increment(calculatedTotal),
+            [payCountKey]: FieldValue.increment(1),
+            ...productIncrements
         }, { merge: true });
 
         await batch.commit();
@@ -89,7 +103,6 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
 
     } catch (error) {
         logger.error("Error crítico procesando orden", error);
-        // No borramos la orden, pero dejamos logs para debug manual
     }
 });
 
@@ -98,13 +111,13 @@ exports.processNewOrder = onDocumentCreated("orders/{orderId}", async (event) =>
 // ----------------------------------------------------------------------
 exports.archiveOldOrders = onSchedule("every day 04:00", async (event) => {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 90); // 90 días atrás
+    cutoffDate.setDate(cutoffDate.getDate() - 90); 
 
     logger.info(`Iniciando purga de órdenes anteriores a: ${cutoffDate.toISOString()}`);
 
     const oldOrdersQuery = db.collection('orders')
         .where('createdAt', '<', cutoffDate)
-        .limit(200); // Límite por ejecución para evitar Timeout
+        .limit(200); 
 
     const snapshot = await oldOrdersQuery.get();
 
@@ -118,10 +131,8 @@ exports.archiveOldOrders = onSchedule("every day 04:00", async (event) => {
 
     snapshot.forEach(doc => {
         const data = doc.data();
-        // Copiar a colección fría
         const archiveRef = db.collection('archived_orders').doc(doc.id);
         batch.set(archiveRef, { ...data, archivedAt: FieldValue.serverTimestamp() });
-        // Borrar de colección caliente
         batch.delete(doc.ref);
         count++;
     });
