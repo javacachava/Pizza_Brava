@@ -8,7 +8,15 @@ import {
   Edit,
   X as XIcon,
   UserCheck,
-  UserX
+  UserX,
+  Pizza,
+  Sandwich,
+  CupSoda,
+  Layers,
+  UtensilsCrossed,
+  IceCream,
+  Soup,
+  Croissant
 } from "lucide-react";
 import {
   doc,
@@ -36,6 +44,19 @@ import AdminCombos from "./admin/AdminCombos";
 import { toast } from "react-hot-toast";
 import { ROLES } from "../constants/types";
 
+// Helper para iconos de categoría
+const getCategoryIcon = (catName) => {
+  const lower = (catName || "").toLowerCase();
+  if (lower.includes("pizza")) return <Pizza size={16} className="text-orange-400" />;
+  if (lower.includes("hamburguesa") || lower.includes("burger")) return <Sandwich size={16} className="text-orange-400" />;
+  if (lower.includes("bebida") || lower.includes("drink")) return <CupSoda size={16} className="text-blue-400" />;
+  if (lower.includes("combo")) return <Layers size={16} className="text-purple-400" />;
+  if (lower.includes("postre") || lower.includes("helado")) return <IceCream size={16} className="text-pink-400" />;
+  if (lower.includes("birria") || lower.includes("sopa")) return <Soup size={16} className="text-red-400" />;
+  if (lower.includes("complemento") || lower.includes("side")) return <Croissant size={16} className="text-yellow-400" />;
+  return <UtensilsCrossed size={16} className="text-slate-400" />;
+};
+
 const ListEditor = ({ title, items, setItems }) => {
   const [val, setVal] = useState("");
 
@@ -55,10 +76,10 @@ const ListEditor = ({ title, items, setItems }) => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col">
+    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm h-full flex flex-col">
       <h4 className="font-black text-xs uppercase text-slate-400 mb-4 flex justify-between tracking-widest">
         {title}
-        <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md">
+        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700">
           {items.length}
         </span>
       </h4>
@@ -67,26 +88,26 @@ const ListEditor = ({ title, items, setItems }) => {
         {items.map((item, i) => (
           <span
             key={i}
-            className="bg-slate-50 border border-slate-200 pl-3 pr-1 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 text-slate-700 group hover:border-orange-200 hover:bg-orange-50 transition-colors"
+            className="bg-slate-950 border border-slate-700 pl-3 pr-1 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 text-slate-300 group hover:border-orange-500/50 hover:bg-slate-900 transition-colors"
           >
             {item}
             <button
               type="button"
               onClick={() => handleRemove(i)}
-              className="text-slate-300 hover:text-red-500 p-1 rounded-md hover:bg-white transition-all"
+              className="text-slate-500 hover:text-red-400 p-1 rounded-md hover:bg-slate-800 transition-all"
             >
               <XIcon size={14} />
             </button>
           </span>
         ))}
         {!items.length && (
-          <p className="text-xs text-slate-400">Sin elementos configurados.</p>
+          <p className="text-xs text-slate-600">Sin elementos configurados.</p>
         )}
       </div>
 
-      <div className="flex gap-2 border-t border-slate-100 pt-4">
+      <div className="flex gap-2 border-t border-slate-800 pt-4">
         <input
-          className="bg-slate-50 border border-slate-200 p-2.5 rounded-lg text-sm flex-1 outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+          className="bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-sm flex-1 outline-none text-slate-200 placeholder:text-slate-600 focus:ring-2 focus:ring-orange-500 transition-all"
           value={val}
           onChange={(e) => setVal(e.target.value)}
           placeholder="Nuevo ítem..."
@@ -94,7 +115,7 @@ const ListEditor = ({ title, items, setItems }) => {
         <button
           type="button"
           onClick={handleAdd}
-          className="bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-lg transition-colors"
+          className="bg-orange-600 hover:bg-orange-500 text-white p-2.5 rounded-lg transition-colors shadow-lg shadow-orange-900/20"
         >
           <Plus size={18} />
         </button>
@@ -125,6 +146,10 @@ export default function AdminPanel({ onLogout }) {
 
         const count = snapshot.data().count || 0;
         if (count > 0) {
+          // Usamos toast en lugar de window.confirm para notificar primero, 
+          // aunque para acciones destructivas masivas, un confirm nativo a veces es más seguro 
+          // o un modal dedicado. Mantengo confirm por seguridad, pero con estilo oscuro si se pudiera.
+          // Por simplicidad en este paso, mantenemos confirm nativo pero el resto dark.
           const ok = window.confirm(
             `MANTENIMIENTO:\nHay ${count} órdenes con más de 90 días.\n¿Moverlas al archivo?`
           );
@@ -426,24 +451,24 @@ export default function AdminPanel({ onLogout }) {
 
   if (loadingConfig) {
     return (
-      <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-400 font-bold">
+      <div className="h-screen flex items-center justify-center bg-slate-950 text-slate-500 font-bold animate-pulse">
         Cargando Panel...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-950 flex flex-col font-sans text-slate-200">
       {/* Navbar */}
-      <header className="bg-slate-900 text-white px-8 py-4 flex justify-between items-center shadow-lg z-20">
-        <h1 className="text-xl font-black flex gap-3 items-center tracking-tight">
-          <span className="bg-orange-600 p-1.5 rounded-lg">
+      <header className="bg-slate-900 border-b border-slate-800 px-8 py-4 flex justify-between items-center shadow-lg z-20 sticky top-0">
+        <h1 className="text-xl font-black flex gap-3 items-center tracking-tight text-white">
+          <span className="bg-gradient-to-br from-orange-600 to-red-600 p-1.5 rounded-lg shadow-lg shadow-orange-900/40">
             <Settings size={20} className="text-white" />
           </span>
           PANEL ADMIN
         </h1>
 
-        <div className="flex gap-1 bg-slate-800/50 p-1 rounded-xl border border-slate-700">
+        <div className="flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
           {["analytics", "menu", "combos", "users", "config"].map((tab) => (
             <button
               key={tab}
@@ -451,8 +476,8 @@ export default function AdminPanel({ onLogout }) {
               onClick={() => setActiveTab(tab)}
               className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                 activeTab === tab
-                  ? "bg-orange-600 text-white shadow-lg shadow-orange-900/20"
-                  : "text-slate-400 hover:text-white hover:bg-slate-700"
+                  ? "bg-slate-800 text-white border border-slate-700 shadow-md"
+                  : "text-slate-500 hover:text-slate-200 hover:bg-slate-900"
               }`}
             >
               {tab === "analytics"
@@ -471,7 +496,7 @@ export default function AdminPanel({ onLogout }) {
         <button
           type="button"
           onClick={onLogout}
-          className="text-slate-400 hover:text-red-400 transition-colors flex gap-2 items-center text-sm font-bold px-4 py-2 rounded-lg hover:bg-white/5"
+          className="text-slate-400 hover:text-red-400 transition-colors flex gap-2 items-center text-sm font-bold px-4 py-2 rounded-lg hover:bg-red-900/10 border border-transparent hover:border-red-900/30"
         >
           <LogOut size={18} /> Salir
         </button>
@@ -486,22 +511,27 @@ export default function AdminPanel({ onLogout }) {
         {activeTab === "menu" && (
           <section className="space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-800">
-                Catálogo de productos
-              </h2>
+              <div>
+                <h2 className="text-2xl font-bold text-white">
+                  Catálogo de productos
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Gestiona los items disponibles para la venta.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => handleOpenForm(null)}
-                className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg flex gap-2 items-center transition-all hover:scale-105 active:scale-95"
+                className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg shadow-orange-900/30 flex gap-2 items-center transition-all hover:scale-105 active:scale-95"
               >
                 <Plus size={18} />
                 Crear producto
               </button>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden">
               <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase font-black text-slate-500 tracking-wider">
+                <thead className="bg-slate-950 border-b border-slate-800 text-xs uppercase font-black text-slate-500 tracking-wider">
                   <tr>
                     <th className="p-4">Producto</th>
                     <th className="p-4">Categoría</th>
@@ -510,12 +540,12 @@ export default function AdminPanel({ onLogout }) {
                     <th className="p-4 text-right">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
+                <tbody className="divide-y divide-slate-800 text-sm">
                   {loadingProducts && (
                     <tr>
                       <td
                         colSpan={5}
-                        className="p-6 text-center text-slate-400"
+                        className="p-6 text-center text-slate-500 animate-pulse"
                       >
                         Cargando productos...
                       </td>
@@ -525,7 +555,7 @@ export default function AdminPanel({ onLogout }) {
                     <tr>
                       <td
                         colSpan={5}
-                        className="p-6 text-center text-slate-400"
+                        className="p-6 text-center text-slate-500"
                       >
                         No hay productos registrados.
                       </td>
@@ -534,39 +564,42 @@ export default function AdminPanel({ onLogout }) {
                   {products.map((p) => (
                     <tr
                       key={p.id}
-                      className="hover:bg-orange-50/50 transition-colors group"
+                      className="hover:bg-slate-800/50 transition-colors group"
                     >
-                      <td className="p-4 font-bold text-slate-700">
+                      <td className="p-4 font-bold text-slate-200">
                         {p.name}
                         {!p.isActive && (
-                          <span className="ml-2 text-[10px] uppercase font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded">
+                          <span className="ml-2 text-[10px] uppercase font-bold text-red-400 bg-red-900/20 border border-red-900/30 px-2 py-0.5 rounded">
                             Inactivo
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-slate-500">
-                        {p.mainCategory || "-"}
+                      <td className="p-4">
+                        <div className="flex items-center gap-2 text-slate-400">
+                          {getCategoryIcon(p.mainCategory)}
+                          <span>{p.mainCategory || "-"}</span>
+                        </div>
                       </td>
                       <td className="p-4">
-                        <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">
+                        <span className="bg-slate-800 border border-slate-700 text-slate-400 px-2 py-1 rounded text-xs font-bold uppercase">
                           {p.station || "-"}
                         </span>
                       </td>
-                      <td className="p-4 font-mono font-bold">
+                      <td className="p-4 font-mono font-bold text-orange-400">
                         {typeof p.price === "number" ? `$${p.price.toFixed(2)}` : "-"}
                       </td>
                       <td className="p-4 flex justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button
                           type="button"
                           onClick={() => handleOpenForm(p)}
-                          className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                          className="text-blue-400 hover:bg-blue-900/20 p-2 rounded-lg transition-colors border border-transparent hover:border-blue-900/30"
                         >
                           <Edit size={18} />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteProduct(p)}
-                          className="text-red-400 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                          className="text-red-400 hover:bg-red-900/20 p-2 rounded-lg transition-colors border border-transparent hover:border-red-900/30"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -578,19 +611,19 @@ export default function AdminPanel({ onLogout }) {
             </div>
 
             {isEditing && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
-                  <h3 className="text-xl font-black text-slate-800">
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-md space-y-6 animate-in zoom-in-95 duration-200">
+                  <h3 className="text-xl font-black text-white">
                     {formData.id ? "Editar producto" : "Nuevo producto"}
                   </h3>
 
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-400 uppercase">
+                      <label className="text-xs font-bold text-slate-500 uppercase">
                         Nombre
                       </label>
                       <input
-                        className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                        className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium text-white placeholder:text-slate-600"
                         placeholder="Ej: Pizza Pepperoni"
                         value={formData.name}
                         onChange={(e) =>
@@ -604,12 +637,12 @@ export default function AdminPanel({ onLogout }) {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-400 uppercase">
+                        <label className="text-xs font-bold text-slate-500 uppercase">
                           Precio ($)
                         </label>
                         <input
                           type="number"
-                          className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                          className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium text-white placeholder:text-slate-600"
                           placeholder="0.00"
                           value={formData.price}
                           onChange={(e) =>
@@ -621,11 +654,11 @@ export default function AdminPanel({ onLogout }) {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-bold text-slate-400 uppercase">
+                        <label className="text-xs font-bold text-slate-500 uppercase">
                           Estación
                         </label>
                         <select
-                          className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                          className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium text-white"
                           value={formData.station}
                           onChange={(e) =>
                             setFormData((prev) => ({
@@ -641,11 +674,11 @@ export default function AdminPanel({ onLogout }) {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-bold text-slate-400 uppercase">
+                      <label className="text-xs font-bold text-slate-500 uppercase">
                         Categoría
                       </label>
                       <input
-                        className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium"
+                        className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-medium text-white placeholder:text-slate-600"
                         placeholder="Ej: Pizzas, Bebidas, Combos..."
                         value={formData.mainCategory}
                         onChange={(e) =>
@@ -661,7 +694,7 @@ export default function AdminPanel({ onLogout }) {
                       <input
                         id="isActive"
                         type="checkbox"
-                        className="rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                        className="rounded border-slate-700 bg-slate-800 text-orange-600 focus:ring-orange-500 focus:ring-offset-slate-900"
                         checked={formData.isActive}
                         onChange={(e) =>
                           setFormData((prev) => ({
@@ -672,7 +705,7 @@ export default function AdminPanel({ onLogout }) {
                       />
                       <label
                         htmlFor="isActive"
-                        className="text-sm text-slate-600"
+                        className="text-sm text-slate-400 select-none"
                       >
                         Producto activo en el POS
                       </label>
@@ -683,14 +716,14 @@ export default function AdminPanel({ onLogout }) {
                     <button
                       type="button"
                       onClick={() => setIsEditing(false)}
-                      className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors"
+                      className="px-6 py-3 rounded-xl font-bold text-slate-400 hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-all"
                     >
                       Cancelar
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveProduct}
-                      className="bg-orange-600 hover:bg-orange-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-orange-200 transition-all hover:scale-105"
+                      className="bg-orange-600 hover:bg-orange-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-orange-900/40 transition-all hover:scale-105"
                     >
                       Guardar
                     </button>
@@ -704,13 +737,13 @@ export default function AdminPanel({ onLogout }) {
         {activeTab === "users" && (
           <section className="max-w-3xl mx-auto space-y-6">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-slate-800">
+              <h2 className="text-2xl font-bold text-white">
                 Equipo de trabajo
               </h2>
               <button
                 type="button"
                 onClick={() => setIsCreatingUser(true)}
-                className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg flex gap-2 items-center transition-all"
+                className="bg-orange-600 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-orange-900/30 flex gap-2 items-center transition-all hover:scale-105"
               >
                 <Plus size={18} />
                 Nuevo usuario
@@ -719,25 +752,25 @@ export default function AdminPanel({ onLogout }) {
 
             <div className="grid gap-4">
               {!users.length && (
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-slate-500">
                   Aún no hay usuarios registrados en la base de datos.
                 </p>
               )}
               {users.map((u) => (
                 <div
                   key={u.id}
-                  className={`bg-white p-5 rounded-2xl shadow-sm border transition-all flex justify-between items-center group ${
+                  className={`bg-slate-900 p-5 rounded-2xl shadow-sm border transition-all flex justify-between items-center group ${
                     u.active
-                      ? "border-slate-200 hover:border-orange-200"
-                      : "border-red-100 bg-red-50/30 opacity-80"
+                      ? "border-slate-800 hover:border-orange-500/30"
+                      : "border-red-900/30 bg-red-900/10 opacity-70"
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <div
                       className={`w-10 h-10 rounded-full flex items-center justify-center ${
                         u.active
-                          ? "bg-green-100 text-green-600"
-                          : "bg-red-100 text-red-600"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : "bg-red-500/10 text-red-400"
                       }`}
                     >
                       {u.active ? (
@@ -747,12 +780,12 @@ export default function AdminPanel({ onLogout }) {
                       )}
                     </div>
                     <div>
-                      <p className="font-bold text-slate-800 text-lg">
+                      <p className="font-bold text-slate-100 text-lg">
                         {u.name || "(Sin nombre)"}
                       </p>
                       <p className="text-sm text-slate-500 flex items-center gap-2">
                         {u.email}
-                        <span className="uppercase font-bold text-xs bg-slate-100 px-2 py-0.5 rounded">
+                        <span className="uppercase font-bold text-[10px] bg-slate-800 px-2 py-0.5 rounded border border-slate-700 text-slate-400">
                           {u.role}
                         </span>
                       </p>
@@ -767,8 +800,8 @@ export default function AdminPanel({ onLogout }) {
                           onClick={() => toggleUserStatus(u)}
                           className={`p-2.5 rounded-xl transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wider ${
                             u.active
-                              ? "text-orange-600 bg-orange-50 hover:bg-orange-100"
-                              : "text-green-600 bg-green-50 hover:bg-green-100"
+                              ? "text-orange-400 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20"
+                              : "text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20"
                           }`}
                         >
                           {u.active ? "Bloquear" : "Activar"}
@@ -776,13 +809,13 @@ export default function AdminPanel({ onLogout }) {
                         <button
                           type="button"
                           onClick={() => handleDeleteUser(u)}
-                          className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-2.5 rounded-xl transition-all"
+                          className="text-slate-500 hover:text-red-400 hover:bg-red-900/20 p-2.5 rounded-xl transition-all"
                         >
                           <Trash2 size={20} />
                         </button>
                       </>
                     ) : (
-                      <span className="text-xs text-slate-300 font-bold italic self-center px-4">
+                      <span className="text-xs text-slate-600 font-bold italic self-center px-4">
                         Admin protegido
                       </span>
                     )}
@@ -792,16 +825,16 @@ export default function AdminPanel({ onLogout }) {
             </div>
 
             {isCreatingUser && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                 <form
                   onSubmit={handleCreateUser}
-                  className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm space-y-5 animate-in zoom-in-95 duration-200"
+                  className="bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm space-y-5 animate-in zoom-in-95 duration-200"
                 >
-                  <h3 className="text-xl font-black text-slate-800">
+                  <h3 className="text-xl font-black text-white">
                     Nuevo miembro
                   </h3>
                   <input
-                    className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500"
+                    className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder:text-slate-600"
                     placeholder="Nombre completo"
                     value={newUser.name}
                     onChange={(e) =>
@@ -810,7 +843,7 @@ export default function AdminPanel({ onLogout }) {
                     required
                   />
                   <input
-                    className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500"
+                    className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder:text-slate-600"
                     type="email"
                     placeholder="Correo electrónico"
                     value={newUser.email}
@@ -820,7 +853,7 @@ export default function AdminPanel({ onLogout }) {
                     required
                   />
                   <input
-                    className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500"
+                    className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 text-white placeholder:text-slate-600"
                     type="password"
                     placeholder="Contraseña temporal"
                     value={newUser.password}
@@ -833,7 +866,7 @@ export default function AdminPanel({ onLogout }) {
                     required
                   />
                   <select
-                    className="bg-slate-50 border border-slate-200 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500"
+                    className="bg-slate-950 border border-slate-800 p-3 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 text-white"
                     value={newUser.role}
                     onChange={(e) =>
                       setNewUser((prev) => ({ ...prev, role: e.target.value }))
@@ -847,13 +880,13 @@ export default function AdminPanel({ onLogout }) {
                     <button
                       type="button"
                       onClick={() => setIsCreatingUser(false)}
-                      className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100"
+                      className="px-5 py-2.5 rounded-xl font-bold text-slate-400 hover:bg-slate-800"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg hover:bg-slate-800"
+                      className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg"
                     >
                       Crear
                     </button>
@@ -866,22 +899,22 @@ export default function AdminPanel({ onLogout }) {
 
         {activeTab === "config" && (
           <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
-              <h3 className="font-black text-slate-800 mb-4 text-lg">
+            <div className="bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-800 h-fit">
+              <h3 className="font-black text-slate-200 mb-4 text-lg">
                 Reglas de precio
               </h3>
               <div className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase">
+                  <label className="text-xs font-bold text-slate-500 uppercase">
                     Costo ingrediente extra
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 text-slate-400">
+                    <span className="absolute left-3 top-3 text-slate-500">
                       $
                     </span>
                     <input
                       type="number"
-                      className="bg-slate-50 border border-slate-200 p-3 pl-8 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-mono font-bold"
+                      className="bg-slate-950 border border-slate-800 p-3 pl-8 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-mono font-bold text-white"
                       value={prices.extraIngredient}
                       onChange={(e) =>
                         setPrices((prev) => ({
@@ -894,16 +927,16 @@ export default function AdminPanel({ onLogout }) {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-400 uppercase">
+                  <label className="text-xs font-bold text-slate-500 uppercase">
                     Diferencia de precio tamaño grande
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 text-slate-400">
+                    <span className="absolute left-3 top-3 text-slate-500">
                       $
                     </span>
                     <input
                       type="number"
-                      className="bg-slate-50 border border-slate-200 p-3 pl-8 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-mono font-bold"
+                      className="bg-slate-950 border border-slate-800 p-3 pl-8 rounded-xl w-full outline-none focus:ring-2 focus:ring-orange-500 font-mono font-bold text-white"
                       value={prices.sizeDifference}
                       onChange={(e) =>
                         setPrices((prev) => ({
@@ -918,7 +951,7 @@ export default function AdminPanel({ onLogout }) {
                 <button
                   type="button"
                   onClick={handleSaveGlobalConfig}
-                  className="bg-slate-900 text-white w-full py-3 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-transform active:scale-95 mt-2"
+                  className="bg-slate-800 text-white w-full py-3 rounded-xl font-bold shadow-lg hover:bg-slate-700 border border-slate-700 transition-transform active:scale-95 mt-2"
                 >
                   Guardar cambios
                 </button>
