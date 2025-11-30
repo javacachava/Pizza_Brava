@@ -190,7 +190,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return "Últimos 30 días";
   }, [dateRange]);
 
-  // Generación de PDF PROFESIONAL
+  // Generación de PDF PROFESIONAL + validación de rango completo
   const handleExportPDF = () => {
     if (!summary || !stats.length) {
       toast.error("No hay datos para exportar.", {
@@ -207,14 +207,14 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     if (dateRange === "week") {
       requiredDays = 7;
     } else if (dateRange === "month") {
-      // aquí usamos el rango real (29, 30 o 31 días según corresponda)
+      // usamos el rango real (29, 30 o 31 días según corresponda)
       requiredDays = daysInRange;
     }
 
     if (stats.length < requiredDays) {
       toast.error(
         `No se puede generar el PDF de ${dateRangeLabel}.\n` +
-        `Días con cierre: ${stats.length} / ${requiredDays}.`,
+          `Días con cierre: ${stats.length} / ${requiredDays}.`,
         {
           duration: 5000,
           style: { minWidth: "350px", background: "#334155", color: "#fff" }
@@ -265,9 +265,21 @@ export default function AnalyticsPanel({ enablePrint = false }) {
         startY: currentY,
         head: [["Concepto", "Monto", "Notas"]],
         body: [
-          ["Ventas Brutas", `$${summary.totalSales.toFixed(2)}`, "Total cobrado (Incl. Impuestos)"],
-          ["Impuestos (Estimado 13%)", `$${taxAmount.toFixed(2)}`, "IVA calculado sobre venta bruta"],
-          ["Ventas Netas", `$${netSalesBase.toFixed(2)}`, "Base imponible aprox."],
+          [
+            "Ventas Brutas",
+            `$${summary.totalSales.toFixed(2)}`,
+            "Total cobrado (Incl. Impuestos)"
+          ],
+          [
+            "Impuestos (Estimado 13%)",
+            `$${taxAmount.toFixed(2)}`,
+            "IVA calculado sobre venta bruta"
+          ],
+          [
+            "Ventas Netas",
+            `$${netSalesBase.toFixed(2)}`,
+            "Base imponible aprox."
+          ],
           ["Descuentos / Promos", "$0.00", "No registrado en este periodo"],
           ["Devoluciones", "$0.00", "No registrado en este periodo"]
         ],
@@ -502,9 +514,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
           </h3>
-          <div className="h-72">
+          <div className="h-72 w-full min-w-0">
             {summary.chartDataDaily.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <BarChart data={summary.chartDataDaily}>
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -535,14 +547,22 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.3)"
                     }}
                     itemStyle={{ color: "#e2e8f0" }}
-                    labelStyle={{ color: "#94a3b8", marginBottom: "0.25rem" }}
+                    labelStyle={{
+                      color: "#94a3b8",
+                      marginBottom: "0.25rem"
+                    }}
                     formatter={(value, name) =>
                       name === "totalOrders"
                         ? [`${value}`, "Órdenes"]
                         : [`$${Number(value).toFixed(2)}`, "Ventas"]
                     }
                   />
-                  <Legend wrapperStyle={{ paddingTop: "10px", color: "#cbd5e1" }} />
+                  <Legend
+                    wrapperStyle={{
+                      paddingTop: "10px",
+                      color: "#cbd5e1"
+                    }}
+                  />
                   <Bar
                     dataKey="totalSales"
                     name="Ventas ($)"
@@ -565,9 +585,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
           </h3>
-          <div className="h-72">
+          <div className="h-72 w-full min-w-0">
             {summary.chartDataCat.length ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <PieChart>
                   <Pie
                     data={summary.chartDataCat}
@@ -592,11 +612,11 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                   </Pie>
                   <Tooltip
                     formatter={(val) => `$${Number(val).toFixed(2)}`}
-                    contentStyle={{ 
-                      borderRadius: "8px", 
-                      backgroundColor: "#0f172a", 
-                      borderColor: "#334155", 
-                      color: "#f8fafc" 
+                    contentStyle={{
+                      borderRadius: "8px",
+                      backgroundColor: "#0f172a",
+                      borderColor: "#334155",
+                      color: "#f8fafc"
                     }}
                     itemStyle={{ color: "#e2e8f0" }}
                   />
