@@ -17,7 +17,7 @@ import { Download, AlertCircle } from "lucide-react";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import { db } from "../services/firebase";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import dayjs from "dayjs";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
@@ -175,7 +175,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
       );
 
       // 1. Tabla Resumen General
-      doc.autoTable({
+      autoTable(doc, {
         startY: 40,
         head: [["Ventas Totales", "Órdenes", "Ticket Promedio"]],
         body: [
@@ -185,15 +185,15 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             `$${summary.avgTicket.toFixed(2)}`
           ]
         ],
-        theme: 'grid',
+        theme: "grid",
         headStyles: { fillColor: [249, 115, 22] } // Naranja corporativo
       });
 
       // 2. Tabla Ventas por Categoría
       if (summary.chartDataCat.length > 0) {
         doc.text("Desglose por Categoría", 14, doc.lastAutoTable.finalY + 10);
-        
-        doc.autoTable({
+
+        autoTable(doc, {
           startY: doc.lastAutoTable.finalY + 15,
           head: [["Categoría", "Ventas ($)", "Órdenes (aprox)"]],
           body: summary.chartDataCat.map((row) => [
@@ -201,14 +201,14 @@ export default function AnalyticsPanel({ enablePrint = false }) {
             `$${row.totalSales.toFixed(2)}`,
             row.totalOrders > 0 ? row.totalOrders : "-"
           ]),
-          theme: 'striped'
+          theme: "striped"
         });
       }
 
       // 3. Tabla Detalle Diario
       doc.text("Detalle Diario", 14, doc.lastAutoTable.finalY + 10);
-      
-      doc.autoTable({
+
+      autoTable(doc, {
         startY: doc.lastAutoTable.finalY + 15,
         head: [["Fecha", "Ventas ($)", "Órdenes"]],
         body: summary.chartDataDaily.map((row) => [
