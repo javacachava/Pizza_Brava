@@ -153,7 +153,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     });
 
     const chartDataCat = Object.entries(categoryTotalsSales)
-      // si quieres que dibuje aunque tenga 0, quita este filter:
+      // Solo mostramos categorías con ventas > 0
       .filter(([, val]) => val > 0)
       .map(([category, sales]) => ({
         category,
@@ -188,8 +188,8 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     };
   }, [stats]);
 
-  // DEBUG: mira en consola qué trae el pastel
-  console.log("chartDataCat (pastel):", summary.chartDataCat);
+  // DEBUG: verificar datos en consola
+  // console.log("chartDataCat:", summary.chartDataCat);
 
   const dateRangeLabel = useMemo(() => {
     if (dateRange === "today") return "Hoy";
@@ -197,7 +197,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
     return "Últimos 30 días";
   }, [dateRange]);
 
-  // Generación de PDF PROFESIONAL + validación de rango completo
+  // Generación de PDF
   const handleExportPDF = () => {
     if (!summary || !stats.length) {
       toast.error("No hay datos para exportar.", {
@@ -591,7 +591,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           </ChartWrapper>
         </div>
 
-        {/* Ventas por categoría (AHORA BAR CHART HORIZONTAL) */}
+        {/* Ventas por categoría */}
         <div className="bg-slate-900 rounded-xl border border-slate-800 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
@@ -609,7 +609,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(val) => `$${val}`} />
-                  <YAxis dataKey="category" type="category" width={80} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis dataKey="category" type="category" width={100} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                   <Tooltip
                     cursor={{ fill: "#1e293b" }}
                     formatter={(val) => [`$${Number(val).toFixed(2)}`, "Ventas"]}
