@@ -31,10 +31,16 @@ export default function AnalyticsPanel({ enablePrint = false }) {
 
   // Evitar que Recharts mida el contenedor antes de estar montado
   const [mounted, setMounted] = useState(false);
+  
+  // CORRECCIÓN 1: Usar setTimeout para asegurar que el layout CSS (Grid) esté listo
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 150);
+    return () => clearTimeout(timer);
   }, []);
 
+  
   // Cargar documentos de daily_stats según rango seleccionado
   useEffect(() => {
     const load = async () => {
@@ -552,9 +558,10 @@ export default function AnalyticsPanel({ enablePrint = false }) {
                       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.3)"
                     }}
                     itemStyle={{ color: "#e2e8f0" }}
+                    // CORRECCIÓN 2: Usar 'margin' en lugar de 'marginBottom' para evitar conflicto
                     labelStyle={{
                       color: "#94a3b8",
-                      marginBottom: "0.25rem"
+                      margin: "0 0 4px 0"
                     }}
                     formatter={(value, name) =>
                       name === "totalOrders"
