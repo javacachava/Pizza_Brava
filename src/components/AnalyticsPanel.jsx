@@ -30,6 +30,12 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Evitar que Recharts mida el contenedor antes de estar montado
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Cargar documentos de daily_stats según rango seleccionado
   useEffect(() => {
     const load = async () => {
@@ -414,7 +420,7 @@ export default function AnalyticsPanel({ enablePrint = false }) {
   return (
     <div className="space-y-6">
       {/* Header / filtros / resumen rápido */}
-      <div className="flex flex-col md:flex-row justify-between items-start gap-4 bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800">
+      <div className="flex flex-col md-flex-row justify-between items-start gap-4 bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-800">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-500">
             Reportes
@@ -514,9 +520,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Tendencia de ventas
           </h3>
-          <div className="h-72 w-full min-w-0">
-            {summary.chartDataDaily.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-72 w-full min-w-0 relative">
+            {mounted && summary.chartDataDaily.length ? (
+              <ResponsiveContainer width="99%" height="100%">
                 <BarChart data={summary.chartDataDaily}>
                   <CartesianGrid
                     strokeDasharray="3 3"
@@ -585,9 +591,9 @@ export default function AnalyticsPanel({ enablePrint = false }) {
           <h3 className="text-sm font-bold text-slate-200 mb-3">
             Ventas por categoría
           </h3>
-          <div className="h-72 w-full min-w-0">
-            {summary.chartDataCat.length ? (
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="h-72 w-full min-w-0 relative">
+            {mounted && summary.chartDataCat.length ? (
+              <ResponsiveContainer width="99%" height="100%">
                 <PieChart>
                   <Pie
                     data={summary.chartDataCat}
