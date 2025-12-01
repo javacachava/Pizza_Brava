@@ -12,7 +12,7 @@ import {
   PackageCheck
 } from "lucide-react";
 import { STATUS } from "../constants/types";
-// Importamos el sonido desde el archivo de constantes
+// Importamos la ruta del archivo (debe ser "/cocina.mp3")
 import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
 
 export default function KitchenDisplay({ onLogout }) {
@@ -24,7 +24,7 @@ export default function KitchenDisplay({ onLogout }) {
   const { updateOrderStatus } = useOrders();
 
   const audioRef = useRef(null);
-  const lastActiveCountRef = useRef(null); // para detectar nuevas órdenes por cantidad
+  const lastActiveCountRef = useRef(null); 
 
   // Reloj para recalcular tiempos en cocina
   useEffect(() => {
@@ -32,28 +32,55 @@ export default function KitchenDisplay({ onLogout }) {
     return () => clearInterval(id);
   }, []);
 
-  // Inicializar audio tras interacción del usuario
+  // --- SOLUCIÓN DEL AUDIO ---
   const initAudio = () => {
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(NOTIFICATION_SOUND_BASE64);
-        audioRef.current.load();
-      }
-      setAudioInitialized(true);
-      setSoundEnabled(true);
-    } catch (e) {
-      console.error("Error inicializando audio:", e);
+    // 1. Crear el objeto Audio si no existe
+    if (!audioRef.current) {
+      audioRef.current = new Audio(NOTIFICATION_SOUND_BASE64);
+    }
+
+    // 2. REPRODUCIR INMEDIATAMENTE para desbloquear el navegador
+    // Esto es crucial: Si no suena aquí, el navegador bloqueará los sonidos futuros.
+    const playPromise = audioRef.current.play();
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          console.log("🔊 Audio desbloqueado y probado con éxito.");
+          setAudioInitialized(true);
+          setSoundEnabled(true);
+          // Opcional: pausarlo inmediatamente si el sonido es muy largo, 
+          // pero mejor dejar que suene el "ding" para confirmar que funciona.
+          // audioRef.current.pause(); 
+          // audioRef.current.currentTime = 0;
+        })
+        .catch((error) => {
+          console.error("❌ Error al iniciar audio:", error);
+          alert(
+            `No se pudo reproducir el sonido. \n\nPosibles causas:\n1. El archivo "cocina.mp3" no está en la carpeta "public".\n2. El nombre del archivo no coincide (mayúsculas/minúsculas).\n\nError técnico: ${error.message}`
+          );
+        });
     }
   };
 
   const playNotification = () => {
-    if (!audioInitialized || !soundEnabled || !audioRef.current) return;
-    try {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    } catch (e) {
-      console.error("Error reproduciendo sonido:", e);
+    console.log("🔔 Intentando notificar nueva orden...");
+    
+    if (!audioInitialized) {
+      console.warn("⚠️ Audio no inicializado. El usuario debe tocar la pantalla primero.");
+      return;
     }
+    if (!soundEnabled) {
+      console.log("Dx Silencio: El sonido está desactivado manualmente.");
+      return;
+    }
+    if (!audioRef.current) return;
+
+    // Reproducir
+    audioRef.current.currentTime = 0;
+    audioRef.current.play()
+      .then(() => console.log("✅ Sonido reproducido correctamente."))
+      .catch((e) => console.error("❌ El navegador bloqueó el sonido automático:", e));
   };
 
   // Listener de órdenes
@@ -74,7 +101,7 @@ export default function KitchenDisplay({ onLogout }) {
           ...d.data()
         }));
 
-        // solo nos interesan las que no están despachadas
+        // Filtramos solo las activas
         const active = list.filter(
           (o) =>
             o.status === STATUS.NEW ||
@@ -84,19 +111,22 @@ export default function KitchenDisplay({ onLogout }) {
 
         setOrders(active);
 
-        // LÓGICA: sonar si aumenta la cantidad de órdenes activas
+        // LÓGICA DE DETECCIÓN DE NUEVA ORDEN
         const currentCount = active.length;
 
-        // primera vez: solo seteamos, no sonamos
+        // Primera carga: sincronizamos sin sonar
         if (lastActiveCountRef.current === null) {
           lastActiveCountRef.current = currentCount;
           return;
         }
 
+        // Si hay MÁS órdenes que antes -> SONAR
         if (currentCount > lastActiveCountRef.current) {
+          console.log(`📈 Nuevas órdenes detectadas (${lastActiveCountRef.current} -> ${currentCount})`);
           lastActiveCountRef.current = currentCount;
           playNotification();
         } else {
+          // Si hay menos o igual, solo actualizamos el contador
           lastActiveCountRef.current = currentCount;
         }
       },
@@ -106,7 +136,6 @@ export default function KitchenDisplay({ onLogout }) {
     );
 
     return () => unsub();
-    // sin dependencias: no re-suscribimos por sonido
   }, []);
 
   const grouped = useMemo(() => {
@@ -137,7 +166,7 @@ export default function KitchenDisplay({ onLogout }) {
     updateOrderStatus(order.id, nextStatus);
   };
 
-  // Pantalla inicial para habilitar audio (obligatorio por navegador)
+  // Pantalla inicial para habilitar audio
   if (!audioInitialized) {
     return (
       <div className="h-screen bg-slate-950 flex flex-col items-center justify-center text-white gap-8 p-4 selection:bg-orange-500">
@@ -150,15 +179,14 @@ export default function KitchenDisplay({ onLogout }) {
             PANTALLA DE COCINA
           </h1>
           <p className="text-slate-400 text-sm md:text-base max-w-md">
-            Toca el botón para activar el sistema de notificaciones sonoras
-            cuando llegue una nueva orden.
+            Toca el botón para activar el sonido. Escucharás una prueba de audio.
           </p>
         </div>
         <button
           onClick={initAudio}
           className="bg-gradient-to-r from-orange-500 to-red-500 px-8 py-3 rounded-2xl font-bold text-lg shadow-xl shadow-orange-900/30 hover:scale-105 active:scale-95 transition-transform"
         >
-          Iniciar pantalla de cocina
+          Iniciar y Probar Sonido
         </button>
         <button
           onClick={onLogout}
@@ -188,29 +216,18 @@ export default function KitchenDisplay({ onLogout }) {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Resumen */}
           <div className="hidden md:flex items-center gap-4 text-xs font-semibold">
             <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
-              Nuevas:{" "}
-              <span className="text-orange-400">
-                {grouped[STATUS.NEW].length}
-              </span>
+              Nuevas: <span className="text-orange-400">{grouped[STATUS.NEW].length}</span>
             </span>
             <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
-              En proceso:{" "}
-              <span className="text-yellow-300">
-                {grouped[STATUS.PROCESS].length}
-              </span>
+              En proceso: <span className="text-yellow-300">{grouped[STATUS.PROCESS].length}</span>
             </span>
             <span className="px-2 py-1 rounded-full bg-slate-900 border border-slate-700 text-slate-200">
-              Listas:{" "}
-              <span className="text-emerald-300">
-                {grouped[STATUS.READY].length}
-              </span>
+              Listas: <span className="text-emerald-300">{grouped[STATUS.READY].length}</span>
             </span>
           </div>
 
-          {/* Sonido */}
           <button
             type="button"
             onClick={() => setSoundEnabled((v) => !v)}
@@ -233,7 +250,6 @@ export default function KitchenDisplay({ onLogout }) {
             )}
           </button>
 
-          {/* Logout */}
           <button
             type="button"
             onClick={onLogout}
@@ -276,35 +292,25 @@ export default function KitchenDisplay({ onLogout }) {
   );
 }
 
-function OrdersColumn({
-  title,
-  color,
-  orders,
-  onAdvance,
-  now,
-  getMinutesInKitchen
-}) {
+function OrdersColumn({ title, color, orders, onAdvance, now, getMinutesInKitchen }) {
   const colorMap = {
     orange: {
       header: "text-orange-300",
       border: "border-orange-500/50",
       pill: "bg-orange-500/15 text-orange-100 border-orange-400/60",
-      button:
-        "bg-orange-500/90 hover:bg-orange-400 text-white shadow-orange-900/40"
+      button: "bg-orange-500/90 hover:bg-orange-400 text-white shadow-orange-900/40"
     },
     yellow: {
       header: "text-yellow-300",
       border: "border-yellow-500/40",
       pill: "bg-yellow-500/10 text-yellow-100 border-yellow-400/60",
-      button:
-        "bg-yellow-400/90 hover:bg-yellow-300 text-slate-900 shadow-yellow-900/30"
+      button: "bg-yellow-400/90 hover:bg-yellow-300 text-slate-900 shadow-yellow-900/30"
     },
     emerald: {
       header: "text-emerald-300",
       border: "border-emerald-500/40",
       pill: "bg-emerald-500/10 text-emerald-100 border-emerald-400/60",
-      button:
-        "bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 shadow-emerald-900/30"
+      button: "bg-emerald-500/90 hover:bg-emerald-400 text-slate-900 shadow-emerald-900/30"
     }
   };
 
@@ -314,24 +320,12 @@ function OrdersColumn({
     <section className="flex flex-col bg-slate-950 border border-slate-800 rounded-3xl shadow-md overflow-hidden">
       <header className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/90">
         <div className="flex items-center gap-2">
-          <span
-            className={`w-2 h-2 rounded-full ${
-              color === "orange"
-                ? "bg-orange-400"
-                : color === "yellow"
-                ? "bg-yellow-300"
-                : "bg-emerald-400"
-            }`}
-          />
-          <h2
-            className={`text-xs font-bold uppercase tracking-[0.2em] ${colorClasses.header}`}
-          >
+          <span className={`w-2 h-2 rounded-full ${color === "orange" ? "bg-orange-400" : color === "yellow" ? "bg-yellow-300" : "bg-emerald-400"}`} />
+          <h2 className={`text-xs font-bold uppercase tracking-[0.2em] ${colorClasses.header}`}>
             {title}
           </h2>
         </div>
-        <span
-          className={`text-[11px] px-2 py-0.5 rounded-full border ${colorClasses.pill}`}
-        >
+        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${colorClasses.pill}`}>
           {orders.length} orden(es)
         </span>
       </header>
@@ -347,10 +341,7 @@ function OrdersColumn({
             const items = order.itemsSnapshot || [];
 
             return (
-              <article
-                key={order.id}
-                className="bg-slate-900 rounded-2xl border border-slate-800 px-3 py-2.5 text-xs flex flex-col gap-2"
-              >
+              <article key={order.id} className="bg-slate-900 rounded-2xl border border-slate-800 px-3 py-2.5 text-xs flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-100">
@@ -368,10 +359,7 @@ function OrdersColumn({
 
                 <div className="border-t border-slate-800 pt-2 space-y-1 max-h-24 overflow-y-auto">
                   {items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex justify-between gap-2 text-[11px] text-slate-200"
-                    >
+                    <div key={idx} className="flex justify-between gap-2 text-[11px] text-slate-200">
                       <span className="truncate">
                         {item.qty}× {item.name}
                       </span>
