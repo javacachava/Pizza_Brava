@@ -12,11 +12,13 @@ import {
   PackageCheck
 } from "lucide-react";
 import { STATUS } from "../constants/types";
-// Importamos el sonido desde el archivo de constantes
+// Importamos la ruta del archivo (debe ser "/cocina.mp3")
 import { NOTIFICATION_SOUND_BASE64 } from "../constants/assets";
 
 export default function KitchenDisplay({ onLogout }) {
   const [orders, setOrders] = useState([]);
+  
+  // Estado para la UI (mostrar/ocultar pantalla de inicio)
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -25,8 +27,17 @@ export default function KitchenDisplay({ onLogout }) {
 
   const audioRef = useRef(null);
   const lastActiveCountRef = useRef(null);
-  // Nueva referencia para recordar si entró una orden mientras el audio estaba bloqueado
   const pendingNotificationRef = useRef(false);
+  
+  // --- NUEVA REF para solucionar el "Stale Closure" ---
+  const audioInitializedRef = useRef(false);
+  const soundEnabledRef = useRef(false);
+
+  // Sincronizar refs con estado (para que los efectos lean siempre el valor real)
+  useEffect(() => {
+    audioInitializedRef.current = audioInitialized;
+    soundEnabledRef.current = soundEnabled;
+  }, [audioInitialized, soundEnabled]);
 
   // Reloj para recalcular tiempos en cocina
   useEffect(() => {
@@ -34,27 +45,27 @@ export default function KitchenDisplay({ onLogout }) {
     return () => clearInterval(id);
   }, []);
 
-  // --- LÓGICA DE AUDIO MEJORADA ---
   const initAudio = () => {
-    // 1. Crear el objeto Audio si no existe
     if (!audioRef.current) {
       audioRef.current = new Audio(NOTIFICATION_SOUND_BASE64);
     }
 
-    // 2. REPRODUCIR INMEDIATAMENTE para desbloquear el navegador
     const playPromise = audioRef.current.play();
 
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
           console.log("🔊 Audio desbloqueado y probado con éxito.");
+          
+          // Actualizamos Estados (para renderizar UI)
           setAudioInitialized(true);
           setSoundEnabled(true);
+          
+          // Actualizamos Refs (para lógica interna inmediata)
+          audioInitializedRef.current = true;
+          soundEnabledRef.current = true;
 
-          // 3. VERIFICAR SI HABÍA UNA NOTIFICACIÓN PENDIENTE
           if (!pendingNotificationRef.current) {
-            // Si NO había órdenes esperando, silenciamos la "prueba" rápidamente
-            // para que no moleste, pero el navegador ya quedó "desbloqueado".
             setTimeout(() => {
               if (audioRef.current) {
                 audioRef.current.pause();
@@ -62,15 +73,14 @@ export default function KitchenDisplay({ onLogout }) {
               }
             }, 500);
           } else {
-            // Si SÍ había una orden pendiente, dejamos que suene completo.
             console.log("🔔 Reproduciendo notificación que estaba pendiente.");
-            pendingNotificationRef.current = false; // Ya sonó, reseteamos la marca
+            pendingNotificationRef.current = false;
           }
         })
         .catch((error) => {
           console.error("❌ Error al iniciar audio:", error);
           alert(
-            `No se pudo reproducir el sonido. \n\nCausas probables:\n1. Falta el archivo "cocina.mp3" en la carpeta public.\n2. Navegador bloqueando audio estricto.\n\nDetalle: ${error.message}`
+            `No se pudo reproducir el sonido. \n\nDetalle: ${error.message}`
           );
         });
     }
@@ -79,14 +89,14 @@ export default function KitchenDisplay({ onLogout }) {
   const playNotification = () => {
     console.log("🔔 Intentando notificar nueva orden...");
 
-    if (!audioInitialized) {
-      // AQUÍ ESTÁ EL TRUCO: Si el audio no está listo, marcamos que hay una pendiente.
-      console.warn("⚠️ Audio bloqueado por navegador. Se reproducirá al iniciar.");
+    // USAMOS LA REF EN LUGAR DEL ESTADO para leer el valor actual real
+    if (!audioInitializedRef.current) {
+      console.warn("⚠️ Audio bloqueado o no iniciado. Se marcará como pendiente.");
       pendingNotificationRef.current = true;
       return;
     }
 
-    if (!soundEnabled || !audioRef.current) {
+    if (!soundEnabledRef.current || !audioRef.current) {
       console.log("🔕 Sonido desactivado manualmente.");
       return;
     }
@@ -116,7 +126,6 @@ export default function KitchenDisplay({ onLogout }) {
           ...d.data()
         }));
 
-        // Solo nos interesan las órdenes activas
         const active = list.filter(
           (o) =>
             o.status === STATUS.NEW ||
@@ -126,22 +135,18 @@ export default function KitchenDisplay({ onLogout }) {
 
         setOrders(active);
 
-        // LÓGICA DE DETECCIÓN DE NUEVA ORDEN
         const currentCount = active.length;
 
-        // Primera carga: solo sincronizamos el contador, no sonamos
         if (lastActiveCountRef.current === null) {
           lastActiveCountRef.current = currentCount;
           return;
         }
 
-        // Si hay MÁS órdenes que antes -> SONAR
         if (currentCount > lastActiveCountRef.current) {
           console.log(`📈 Nuevas órdenes detectadas (${lastActiveCountRef.current} -> ${currentCount})`);
           playNotification();
         }
         
-        // Actualizamos siempre la referencia
         lastActiveCountRef.current = currentCount;
       },
       (error) => {
@@ -180,7 +185,6 @@ export default function KitchenDisplay({ onLogout }) {
     updateOrderStatus(order.id, nextStatus);
   };
 
-  // Pantalla inicial para habilitar audio
   if (!audioInitialized) {
     return (
       <div className="h-screen bg-slate-950 flex flex-col items-center justify-center text-white gap-8 p-4 selection:bg-orange-500">
@@ -194,10 +198,6 @@ export default function KitchenDisplay({ onLogout }) {
           </h1>
           <p className="text-slate-400 text-sm md:text-base max-w-md">
             Toca el botón para activar el sistema de notificaciones sonoras.
-            <br />
-            <span className="text-orange-400 text-xs">
-              (Si entró una orden mientras esperabas, sonará ahora)
-            </span>
           </p>
         </div>
         <button
@@ -248,7 +248,11 @@ export default function KitchenDisplay({ onLogout }) {
 
           <button
             type="button"
-            onClick={() => setSoundEnabled((v) => !v)}
+            onClick={() => {
+                const newState = !soundEnabled;
+                setSoundEnabled(newState);
+                soundEnabledRef.current = newState; // Actualizamos también la ref
+            }}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider border ${
               soundEnabled
                 ? "bg-emerald-500/15 border-emerald-400 text-emerald-200"
