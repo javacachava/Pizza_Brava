@@ -75,38 +75,27 @@ export default function ReceptionPanel({ onLogout }) {
     return () => unsubs.forEach((u) => u && u());
   }, []);
 
-  // Pantalla de carga mientras configura el sistema
-  if (loadingConfig) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-950 font-bold text-slate-500 animate-pulse text-xl">
-        Cargando Sistema...
-      </div>
-    );
-  }
+  const handleProductClick = (product) => {
+    // 1. Definir lógica de qué es una Pizza
+    const mainCategory = (product.mainCategory || "").toLowerCase();
+    const isPizza =
+      mainCategory === "pizzas" ||
+      product.pizzaType === "Clasica" ||
+      product.pizzaType === "Especialidad";
 
-  // En src/components/ReceptionPanel.jsx
-
-const handleProductClick = (product) => {
-  // 1. Definir lógica de qué es una Pizza (igual que tenías en el Dispatcher)
-  const mainCategory = (product.mainCategory || "").toLowerCase();
-  const isPizza =
-    mainCategory === "pizzas" ||
-    product.pizzaType === "Clasica" ||
-    product.pizzaType === "Especialidad";
-
-  // 2. SI ES PIZZA: Seteamos el estado para que se abra el Modal (ProductDispatcher)
-  if (isPizza) {
-    setSelectedProduct(product);
-  } 
-  // 3. SI ES PRODUCTO SIMPLE: Agregamos directo (sin abrir componentes ni useEffects)
-  else {
-    addToCart({
-      ...product,
-      qty: 1
-    });
-    toast.success("Producto agregado");
-  }
-};
+    // 2. SI ES PIZZA: Seteamos el estado para que se abra el Modal
+    if (isPizza) {
+      setSelectedProduct(product);
+    } 
+    // 3. SI ES PRODUCTO SIMPLE: Agregamos directo
+    else {
+      addToCart({
+        ...product,
+        qty: 1
+      });
+      toast.success("Producto agregado");
+    }
+  };
 
   const handleCheckout = (formData) => {
     setPendingOrderData(formData);
@@ -170,10 +159,20 @@ const handleProductClick = (product) => {
     setShowHistory(false);
   };
 
+  if (loadingConfig) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-slate-950 font-bold text-slate-500 animate-pulse text-xl">
+        Cargando Sistema...
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col md:flex-row h-screen max-h-screen bg-slate-950 font-sans text-slate-200 overflow-hidden relative selection:bg-orange-500 selection:text-white">
+      
       {/* Panel Izquierdo: Menú */}
-      <div className="flex-1 min-h-0 h-full">
+      {/* CORRECCIÓN: Quitamos h-full forzado y dejamos que flex-1 maneje el espacio en móvil */}
+      <div className="flex-1 min-h-0">
         <MenuPanel
           menuItems={menuItems}
           onProductClick={handleProductClick}
@@ -183,7 +182,8 @@ const handleProductClick = (product) => {
       </div>
 
       {/* Panel Derecho: Carrito */}
-      <div className="w-full md:w-[400px] border-t md:border-t-0 md:border-l border-slate-800 shadow-2xl z-10 bg-slate-900 h-full">
+      {/* CORRECCIÓN: Altura fija en móvil (40%) y Full en escritorio */}
+      <div className="w-full h-[40%] md:h-full md:w-[400px] border-t md:border-t-0 md:border-l border-slate-800 shadow-2xl z-10 bg-slate-900 flex flex-col">
         <CartPanel
           cart={cart}
           cartTotal={cartTotal}
