@@ -1,3 +1,4 @@
+// src/components/MenuPanel.jsx
 import React, { useState, useMemo } from "react";
 import {
   Search,
@@ -11,25 +12,25 @@ import {
   Layers,
   IceCream,
   Soup,
-  Croissant
+  Croissant,
+  Plus
 } from "lucide-react";
 import { CATEGORIES } from "../constants/data";
 
-// Helper para iconos de categoría (Consistente con AdminPanel)
+// Helper de iconos (Mantenido, solo ajustado tamaño visual)
 const getCategoryIcon = (catName, isActive) => {
   const lower = (catName || "").toLowerCase();
-  const baseSize = 16;
+  const size = 26; // Iconos más grandes para tablet
+  const colorClass = isActive ? "text-white" : "text-slate-500 group-hover:text-orange-500";
   
-  // Si está activo, forzamos blanco. Si no, usamos colores distintivos.
-  if (lower.includes("pizza")) return <Pizza size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
-  if (lower.includes("hamburguesa") || lower.includes("burger")) return <Sandwich size={baseSize} className={isActive ? "text-white" : "text-orange-400"} />;
-  if (lower.includes("bebida") || lower.includes("drink")) return <CupSoda size={baseSize} className={isActive ? "text-white" : "text-blue-400"} />;
-  if (lower.includes("combo")) return <Layers size={baseSize} className={isActive ? "text-white" : "text-purple-400"} />;
-  if (lower.includes("postre") || lower.includes("helado")) return <IceCream size={baseSize} className={isActive ? "text-white" : "text-pink-400"} />;
-  if (lower.includes("birria") || lower.includes("sopa")) return <Soup size={baseSize} className={isActive ? "text-white" : "text-red-400"} />;
-  if (lower.includes("complemento") || lower.includes("side")) return <Croissant size={baseSize} className={isActive ? "text-white" : "text-yellow-400"} />;
-  
-  return <UtensilsCrossed size={baseSize} className={isActive ? "text-white" : "text-slate-500"} />;
+  if (lower.includes("pizza")) return <Pizza size={size} className={colorClass} />;
+  if (lower.includes("hamburguesa")) return <Sandwich size={size} className={colorClass} />;
+  if (lower.includes("bebida")) return <CupSoda size={size} className={colorClass} />;
+  if (lower.includes("combo")) return <Layers size={size} className={colorClass} />;
+  if (lower.includes("postre")) return <IceCream size={size} className={colorClass} />;
+  if (lower.includes("birria")) return <Soup size={size} className={colorClass} />;
+  if (lower.includes("complemento")) return <Croissant size={size} className={colorClass} />;
+  return <UtensilsCrossed size={size} className={colorClass} />;
 };
 
 export default function MenuPanel({
@@ -38,6 +39,7 @@ export default function MenuPanel({
   onLogout,
   onHistory
 }) {
+  // --- LÓGICA ORIGINAL INTACTA ---
   const [activeCategory, setActiveCategory] = useState("Pizzas");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -55,66 +57,24 @@ export default function MenuPanel({
       );
     }
 
-    // Ordenar por nombre para que no esté todo random
     return products.sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""))
     );
   }, [menuItems, activeCategory, searchQuery]);
+  // -------------------------------
 
   return (
-    <div className="h-full flex flex-col bg-slate-950 text-slate-100">
-      {/* HEADER */}
-      <header className="px-5 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm flex items-center gap-3">
-        <div className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-orange-500">
-            Recepción
-          </span>
-          <span className="text-sm font-semibold text-slate-100">
-            Tomar pedido
-          </span>
+    <div className="h-full flex bg-slate-950 text-slate-100 overflow-hidden">
+      
+      {/* 1. SIDEBAR LATERAL (Navegación Estilo Kiosco) */}
+      <aside className="w-24 md:w-32 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-4 gap-3 overflow-y-auto no-scrollbar z-20">
+        {/* Logo / Brand */}
+        <div className="mb-4 p-3 bg-orange-600 rounded-2xl shadow-lg shadow-orange-900/40">
+            <UtensilsCrossed size={32} className="text-white" />
         </div>
 
-        <div className="flex-1 flex items-center gap-3 ml-4">
-          {/* Buscador */}
-          <div className="relative flex-1">
-            <Search
-              size={16}
-              className="absolute left-3 top-2.5 text-slate-500"
-            />
-            <input
-              type="text"
-              placeholder="Buscar producto..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs md:text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-
-          {/* Historial */}
-          <button
-            type="button"
-            onClick={onHistory}
-            className="hidden sm:inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-[11px] font-semibold text-slate-100 hover:bg-slate-800 hover:border-orange-400 transition-colors"
-          >
-            <History size={14} />
-            Historial
-          </button>
-
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={onLogout}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-red-900/20 border border-red-700/60 text-[11px] font-semibold text-red-200 hover:bg-red-800/50 hover:border-red-400 transition-colors"
-          >
-            <LogOut size={14} />
-            Salir
-          </button>
-        </div>
-      </header>
-
-      {/* CATEGORÍAS */}
-      <div className="px-4 pt-3 pb-2 border-b border-slate-800 bg-slate-950/90">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        {/* Lista de Categorías */}
+        <div className="flex-1 w-full px-2 space-y-3">
           {CATEGORIES.map((cat) => {
             const isActive = cat.id === activeCategory;
             return (
@@ -122,105 +82,123 @@ export default function MenuPanel({
                 key={cat.id}
                 type="button"
                 onClick={() => setActiveCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap flex items-center gap-2 border transition-all ${
+                className={`group w-full aspect-square flex flex-col items-center justify-center gap-2 rounded-2xl transition-all duration-200 ${
                   isActive
-                    ? "bg-orange-500 text-white border-orange-400 shadow shadow-orange-500/30"
-                    : "bg-slate-900 text-slate-300 border-slate-700 hover:border-orange-400 hover:text-orange-200"
+                    ? "bg-orange-500 text-white shadow-lg shadow-orange-900/40 scale-105"
+                    : "bg-slate-800/40 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                 }`}
               >
                 {getCategoryIcon(cat.label, isActive)}
-                {cat.label}
+                <span className="text-[10px] font-bold uppercase tracking-wide text-center px-1 leading-none">
+                  {cat.label}
+                </span>
               </button>
             );
           })}
         </div>
-      </div>
 
-      {/* LISTA DE PRODUCTOS */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-3">
-        {filteredProducts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-600 opacity-70">
-            <UtensilsCrossed size={52} className="mb-3 stroke-1" />
-            <p className="text-sm font-medium">Sin resultados en esta categoría.</p>
-            <p className="text-xs text-slate-500 mt-1">
-              Prueba otra categoría o ajusta la búsqueda.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map((product, index) => {
-              const isCombo = product.isCombo === true;
-              const isClassic = product.isClassic === true;
-              const price =
-                typeof product.price === "number"
-                  ? product.price
-                  : Number(product.price || 0);
+        {/* Acciones del Sistema (Footer del Sidebar) */}
+        <div className="mt-auto w-full px-3 space-y-3 pt-4 border-t border-slate-800">
+            <button 
+              onClick={onHistory} 
+              className="w-full aspect-square rounded-2xl bg-slate-800 text-slate-400 flex flex-col items-center justify-center gap-1 hover:bg-slate-700 hover:text-white transition-colors"
+              title="Historial"
+            >
+                <History size={24} />
+                <span className="text-[9px] font-bold uppercase">Historial</span>
+            </button>
+            <button 
+              onClick={onLogout} 
+              className="w-full aspect-square rounded-2xl bg-red-900/10 text-red-400 flex flex-col items-center justify-center gap-1 hover:bg-red-900/30 hover:text-red-200 border border-red-900/20 transition-colors"
+              title="Salir"
+            >
+                <LogOut size={24} />
+                <span className="text-[9px] font-bold uppercase">Salir</span>
+            </button>
+        </div>
+      </aside>
 
-              return (
-                <button
-                  key={product.id || product._signature || `${product.name}-${index}`}
-                  type="button"
-                  onClick={() => onProductClick(product)}
-                  className="group relative bg-slate-900/80 rounded-2xl border border-slate-800 hover:border-orange-500/60 hover:bg-slate-900 shadow-sm hover:shadow-orange-500/20 hover:shadow-lg transition-all duration-150 text-left flex flex-col overflow-hidden"
-                >
-                  {/* Glow superior */}
-                  <div className="absolute inset-x-0 -top-8 h-12 bg-gradient-to-b from-orange-500/40 via-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity" />
+      {/* 2. ÁREA CENTRAL (Grid de Productos) */}
+      <main className="flex-1 flex flex-col min-w-0 bg-slate-950 relative">
+        {/* Header de Búsqueda */}
+        <header className="p-5 border-b border-slate-800 bg-slate-950/95 backdrop-blur sticky top-0 z-10 flex items-center justify-between gap-4">
+           <div>
+              <h2 className="text-2xl font-black text-white tracking-tight">{activeCategory}</h2>
+              <p className="text-xs text-slate-500 font-medium">{filteredProducts.length} productos disponibles</p>
+           </div>
+           <div className="relative w-full max-w-md">
+              <Search className="absolute left-4 top-3.5 text-slate-500" size={20} />
+              <input 
+                  type="text" 
+                  placeholder={`Buscar en ${activeCategory}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-800 text-slate-100 text-lg pl-12 pr-4 py-3 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none placeholder:text-slate-600 transition-all shadow-inner"
+              />
+           </div>
+        </header>
 
-                  <div className="p-3 flex-1 flex flex-col gap-2 relative z-10">
-                    {/* Badges */}
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300">
-                        {product.mainCategory || "Sin categoría"}
-                      </span>
-                      <div className="flex gap-1">
-                        {isCombo && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-200 border border-purple-500/40">
-                            Combo
-                          </span>
-                        )}
-                        {isClassic && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-200 border border-orange-500/40">
-                            Clásica
-                          </span>
-                        )}
-                      </div>
+        {/* Grid Scrollable */}
+        <div className="flex-1 overflow-y-auto p-5">
+          {filteredProducts.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-slate-600 opacity-60 pb-20">
+              <Search size={64} strokeWidth={1.5} className="mb-4" />
+              <p className="text-xl font-medium">No se encontraron productos</p>
+              <p className="text-sm mt-2">Intenta con otra búsqueda o categoría.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-24">
+              {filteredProducts.map((product, index) => {
+                 // Lógica visual
+                 const isCombo = product.isCombo === true;
+                 const isClassic = product.isClassic === true;
+                 const price = Number(product.price || 0);
+
+                 return (
+                  <button
+                    key={product.id || `${product.name}-${index}`}
+                    type="button"
+                    onClick={() => onProductClick(product)}
+                    className="group relative flex flex-col justify-between bg-slate-900 border border-slate-800 hover:border-orange-500/50 rounded-[2rem] p-5 shadow-md hover:shadow-2xl hover:shadow-orange-900/10 hover:-translate-y-1 transition-all duration-200 text-left h-56 active:scale-[0.98]"
+                  >
+                    <div>
+                       <div className="flex gap-2 mb-3">
+                          {isCombo && (
+                             <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                               Combo
+                             </span>
+                          )}
+                          {isClassic && (
+                             <span className="px-2 py-1 rounded-lg text-[10px] font-black uppercase bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                               Clásica
+                             </span>
+                          )}
+                       </div>
+                       <h3 className="text-lg font-bold text-slate-100 leading-snug line-clamp-3 group-hover:text-orange-400 transition-colors">
+                          {product.name}
+                       </h3>
+                       {product.description && (
+                          <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
+                             {product.description}
+                          </p>
+                       )}
                     </div>
-
-                    {/* Nombre */}
-                    <div className="min-h-[2.5rem]">
-                      <p className="text-xs sm:text-sm font-semibold text-slate-50 leading-tight line-clamp-2">
-                        {product.name}
-                      </p>
-                    </div>
-
-                    {/* Subinfo opcional */}
-                    {product.description && (
-                      <p className="text-[10px] text-slate-400 line-clamp-2">
-                        {product.description}
-                      </p>
-                    )}
-
-                    {/* Footer de tarjeta */}
-                    <div className="mt-auto flex items-center justify-between pt-2 border-t border-slate-800">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] uppercase text-slate-500">
-                          Desde
-                        </span>
-                        <span className="text-sm font-black text-orange-400 tracking-tight">
+                    
+                    <div className="mt-auto pt-4 border-t border-slate-800/50 flex items-center justify-between w-full">
+                       <span className="text-2xl font-black text-white tracking-tight">
                           ${price.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-800 group-hover:bg-orange-500 group-hover:text-white transition-colors">
-                        <ChevronRight size={18} strokeWidth={3} />
-                      </div>
+                       </span>
+                       <div className="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-orange-500 flex items-center justify-center text-slate-400 group-hover:text-white transition-all shadow-sm">
+                          <Plus size={20} strokeWidth={3} />
+                       </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                  </button>
+                 );
+              })}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

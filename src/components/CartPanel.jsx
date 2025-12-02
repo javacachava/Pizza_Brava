@@ -1,3 +1,4 @@
+// src/components/CartPanel.jsx
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import {
@@ -11,9 +12,8 @@ import {
   MapPin,
   ChevronDown,
   ChevronUp,
-  Check,
-  AlertCircle,
-  CreditCard
+  CreditCard,
+  AlertCircle
 } from "lucide-react";
 
 export default function CartPanel({
@@ -26,16 +26,16 @@ export default function CartPanel({
   lastOrderNumber,
   loadingOrder
 }) {
-  const [orderType, setOrderType] = useState("local"); // "local" | "telefono"
+  // --- ESTADO INTERNO (Lógica mantenida) ---
+  const [orderType, setOrderType] = useState("local"); 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [orderNotes, setOrderNotes] = useState("");
-  const [isFormCollapsed, setIsFormCollapsed] = useState(false);
+  const [isFormCollapsed, setIsFormCollapsed] = useState(true); // Colapsado por defecto para ver mejor los productos
 
   const isPhoneOrder = orderType === "telefono";
-  const hasCustomerData =
-    customerName.trim() && customerPhone.trim() && customerAddress.trim();
+  const hasCustomerData = customerName.trim() && customerPhone.trim() && customerAddress.trim();
 
   const canConfirm =
     cart.length > 0 &&
@@ -48,16 +48,11 @@ export default function CartPanel({
       toast.error("El carrito está vacío", { icon: "🛒" });
       return;
     }
-
     if (isPhoneOrder && !hasCustomerData) {
-      toast.error("Faltan datos de entrega (nombre, teléfono y dirección).", {
-        duration: 4000,
-        icon: <AlertCircle size={18} />
-      });
+      toast.error("Faltan datos de entrega.", { icon: <AlertCircle size={18} /> });
       setIsFormCollapsed(false);
       return;
     }
-
     onCheckout({
       orderType,
       customerName,
@@ -70,105 +65,86 @@ export default function CartPanel({
   const totalItems = cart.reduce((acc, item) => acc + (item.qty || 0), 0);
 
   return (
-    <div className="w-full h-full flex flex-col relative bg-slate-900 border-l border-slate-800">
-      {/* HEADER CARRITO */}
-      <div className="p-5 border-b border-slate-800 bg-slate-900/90 backdrop-blur-sm flex justify-between items-center shrink-0 z-20">
-        <div>
-          <h2 className="text-lg font-black text-white uppercase tracking-wide flex items-center gap-2">
-            <ShoppingCart size={20} className="text-orange-500" />
-            Pedido Actual
+    <div className="w-full h-full flex flex-col bg-slate-900 relative border-l border-slate-800">
+      
+      {/* HEADER DEL CARRITO */}
+      <div className="p-5 border-b border-slate-800 bg-slate-900 flex justify-between items-center shrink-0 shadow-sm z-20">
+        <div className="flex flex-col">
+          <h2 className="text-xl font-black text-white tracking-tight flex items-center gap-3">
+            <ShoppingCart className="text-orange-500" size={24} />
+            PEDIDO
           </h2>
           {lastOrderNumber && (
-            <div className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[10px] font-bold uppercase">
-              <Check size={10} />
-              Anterior: #{lastOrderNumber}
-            </div>
+             <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider mt-1">
+                Último: #{lastOrderNumber}
+             </span>
           )}
         </div>
-        <span className="bg-slate-800 text-slate-300 border border-slate-700 text-xs font-bold px-3 py-1 rounded-full">
-          {totalItems} ítem(s)
+        <span className="bg-slate-800 text-slate-300 text-sm font-bold px-3 py-1.5 rounded-xl border border-slate-700">
+          {totalItems} ítems
         </span>
       </div>
 
-      {/* LISTA DE ITEMS */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
+      {/* LISTA DE PRODUCTOS (Scrollable) */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
         {cart.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-4 select-none">
-            <div className="bg-slate-800/50 p-6 rounded-full border border-slate-800">
-              <ShoppingCart size={48} className="opacity-30" />
+          <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-4 opacity-50 select-none">
+            <div className="p-6 bg-slate-800/50 rounded-full">
+                <ShoppingCart size={48} strokeWidth={1.5} />
             </div>
-            <p className="font-medium text-sm tracking-wider uppercase">
-              Carrito vacío
-            </p>
-            <p className="text-xs text-slate-500">
-              Agrega productos desde el panel de menú.
-            </p>
+            <p className="text-lg font-medium">Carrito Vacío</p>
           </div>
         ) : (
-          cart.map((item, index) => { // ✅ Index agregado
+          cart.map((item, index) => {
             const lineTotal = Number(item.price || 0) * (item.qty || 0);
-            const details = item.details || [];
-
+            
             return (
               <div
-                key={item.cartItemId || item.id || item._signature || `${item.name}-${index}`} // ✅ Key segura
-                className="relative bg-slate-900 rounded-2xl border border-slate-700/50 hover:border-orange-500/40 transition-all p-3 flex gap-3"
+                key={item.cartItemId || index}
+                className="relative bg-slate-950 rounded-2xl border border-slate-800 p-3 flex gap-4 shadow-sm group"
               >
-                {/* Controles de cantidad */}
-                <div className="flex flex-col items-center gap-1 bg-slate-900 rounded-lg border border-slate-700 p-1 shrink-0">
+                {/* Controles de Cantidad (Grandes) */}
+                <div className="flex flex-col items-center justify-between bg-slate-900 rounded-xl border border-slate-800 w-12 shrink-0 overflow-hidden">
                   <button
                     onClick={() => updateQty(item, 1)}
-                    className="w-6 h-6 flex items-center justify-center text-xs text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                    className="w-full h-10 flex items-center justify-center text-emerald-400 hover:bg-emerald-500/10 active:bg-emerald-500/20 transition-colors"
                   >
-                    <Plus size={12} />
+                    <Plus size={20} strokeWidth={3} />
                   </button>
-                  <span className="font-black text-white text-sm">
-                    {item.qty}
-                  </span>
+                  <span className="font-black text-white text-base py-0.5">{item.qty}</span>
                   <button
                     onClick={() => updateQty(item, -1)}
-                    className="w-6 h-6 flex items-center justify-center text-xs text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                    className="w-full h-10 flex items-center justify-center text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors"
                   >
-                    <Minus size={12} />
+                    <Minus size={20} strokeWidth={3} />
                   </button>
                 </div>
 
-                {/* Detalles del item */}
-                <div className="flex-1 min-w-0">
+                {/* Info Producto */}
+                <div className="flex-1 min-w-0 flex flex-col justify-center">
                   <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-50 truncate">
-                        {item.name}
-                      </p>
-                      {item.mainCategory && (
-                        <p className="text-[10px] uppercase text-slate-500 mt-0.5">
-                          {item.mainCategory}
-                        </p>
-                      )}
-                    </div>
+                    <p className="text-base font-bold text-slate-100 leading-tight">{item.name}</p>
                     <button
                       onClick={() => removeFromCart(item)}
-                      className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-full p-1 transition-colors shrink-0"
+                      className="text-slate-600 hover:text-red-400 p-2 -mr-2 -mt-2 transition-colors"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
 
-                  {details.length > 0 && (
-                    <div className="mt-1 text-[11px] text-slate-400 space-y-0.5 max-h-20 overflow-y-auto">
-                      {details.map((d, idx) => (
-                        <p key={idx} className="truncate">
-                          • {d}
-                        </p>
+                  {item.details && item.details.length > 0 && (
+                    <div className="mt-1.5 text-xs text-slate-400 space-y-0.5 max-h-16 overflow-y-auto">
+                      {item.details.map((d, idx) => (
+                        <p key={idx} className="truncate">• {d}</p>
                       ))}
                     </div>
                   )}
 
-                  <div className="mt-2 flex justify-between items-center">
-                    <span className="text-[11px] text-slate-400">
-                      ${Number(item.price || 0).toFixed(2)} c/u
+                  <div className="mt-2 flex justify-between items-end">
+                    <span className="text-xs text-slate-500 font-medium">
+                      ${Number(item.price).toFixed(2)} u.
                     </span>
-                    <span className="font-mono font-bold text-orange-400 text-sm">
+                    <span className="font-mono font-black text-orange-400 text-lg">
                       ${lineTotal.toFixed(2)}
                     </span>
                   </div>
@@ -179,171 +155,89 @@ export default function CartPanel({
         )}
       </div>
 
-      {/* PANEL INFERIOR: DATOS DEL PEDIDO */}
-      <div className="border-t border-slate-800 bg-slate-950 p-4 space-y-4">
-        {/* TOTAL */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <AlertCircle size={14} />
-            <span>
-              Revisa los datos antes de enviar la orden a cocina.
-            </span>
-          </div>
-          <div className="text-right">
-            <p className="text-[10px] uppercase text-slate-500">Total</p>
-            <p className="text-xl font-black text-orange-400 font-mono">
-              ${cartTotal.toFixed(2)}
-            </p>
-          </div>
-        </div>
+      {/* ZONA INFERIOR (Formulario + Total + Botón) */}
+      <div className="bg-slate-950 border-t border-slate-800 p-4 z-20 space-y-4 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+        
+        {/* Acordeón de Datos Cliente */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <button
+                type="button"
+                onClick={() => setIsFormCollapsed(!isFormCollapsed)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-slate-300 bg-slate-900 hover:bg-slate-800/80 transition-colors"
+            >
+                <span className="flex items-center gap-2">
+                    <User size={16} className="text-orange-500" />
+                    {isPhoneOrder ? "Pedido Telefónico" : "Pedido en Local"}
+                </span>
+                {isFormCollapsed ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
 
-        {/* ORDEN Y CLIENTE */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl">
-          {/* Toggle collapse */}
-          <button
-            type="button"
-            onClick={() => setIsFormCollapsed((v) => !v)}
-            className="w-full flex items-center justify-between px-3 py-2 border-b border-slate-800 text-xs text-slate-300"
-          >
-            <div className="flex items-center gap-2">
-              <User size={14} className="text-slate-400" />
-              <span className="font-semibold uppercase tracking-wide">
-                Datos del cliente y del pedido
-              </span>
-            </div>
-            {isFormCollapsed ? (
-              <ChevronDown size={16} />
-            ) : (
-              <ChevronUp size={16} />
+            {!isFormCollapsed && (
+                <div className="p-4 space-y-3 border-t border-slate-800 bg-slate-950/50 animate-in slide-in-from-top-2 duration-200">
+                    {/* Selector Tipo */}
+                    <div className="flex gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                        <button onClick={() => setOrderType("local")} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${orderType === "local" ? "bg-orange-500 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}>EN LOCAL</button>
+                        <button onClick={() => setOrderType("telefono")} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${orderType === "telefono" ? "bg-orange-500 text-white shadow" : "text-slate-400 hover:text-slate-200"}`}>TELÉFONO</button>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="relative">
+                            <User size={14} className="absolute left-3 top-3 text-slate-500"/>
+                            <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Nombre del cliente" className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-orange-500 transition-colors" />
+                        </div>
+                        
+                        {orderType === "telefono" && (
+                            <>
+                                <div className="relative">
+                                    <Phone size={14} className="absolute left-3 top-3 text-slate-500"/>
+                                    <input type="tel" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} placeholder="Número de teléfono" className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-orange-500 transition-colors" />
+                                </div>
+                                <div className="relative">
+                                    <MapPin size={14} className="absolute left-3 top-3 text-slate-500"/>
+                                    <textarea value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} placeholder="Dirección de entrega" rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-orange-500 resize-none transition-colors" />
+                                </div>
+                            </>
+                        )}
+
+                        <div className="relative">
+                             <FileText size={14} className="absolute left-3 top-3 text-slate-500"/>
+                             <textarea value={orderNotes} onChange={e => setOrderNotes(e.target.value)} placeholder="Notas de cocina (ej. sin cebolla)" rows={1} className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-sm text-white outline-none focus:border-orange-500 resize-none transition-colors" />
+                        </div>
+                    </div>
+                </div>
             )}
-          </button>
-
-          {!isFormCollapsed && (
-            <div className="p-3 space-y-3">
-              {/* Tipo de orden */}
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-2">
-                  Tipo de orden
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOrderType("local")}
-                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      orderType === "local"
-                        ? "bg-orange-500 text-white border-orange-400"
-                        : "bg-slate-900 text-slate-300 border-slate-700 hover:border-orange-400"
-                    }`}
-                  >
-                    En local
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOrderType("telefono")}
-                    className={`flex-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      orderType === "telefono"
-                        ? "bg-orange-500 text-white border-orange-400"
-                        : "bg-slate-900 text-slate-300 border-slate-700 hover:border-orange-400"
-                    }`}
-                  >
-                    Teléfono / domicilio
-                  </button>
-                </div>
-              </div>
-
-              {/* Nombre */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                  <User size={12} />
-                  Nombre del cliente
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder={
-                      orderType === "local"
-                        ? "Opcional (Mostrador)"
-                        : "Obligatorio para teléfono"
-                    }
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500"
-                  />
-                </div>
-              </div>
-
-              {/* Teléfono */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                  <Phone size={12} />
-                  Teléfono
-                </label>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder={
-                    orderType === "local"
-                      ? "Opcional"
-                      : "Obligatorio para teléfono"
-                  }
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500"
-                />
-              </div>
-
-              {/* Dirección (solo teléfono) */}
-              {isPhoneOrder && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                    <MapPin size={12} />
-                    Dirección
-                  </label>
-                  <textarea
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    placeholder="Dirección completa para entrega"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500 resize-none min-h-[60px]"
-                  />
-                </div>
-              )}
-
-              {/* Notas */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                  <FileText size={12} />
-                  Notas de la orden
-                </label>
-                <textarea
-                  value={orderNotes}
-                  onChange={(e) => setOrderNotes(e.target.value)}
-                  placeholder="Sin cebolla, extra queso, referencia de mesa, etc."
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-orange-500 resize-none min-h-[60px]"
-                />
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* BOTÓN CONFIRMAR */}
-        <button
-          type="button"
-          onClick={handleValidateAndCheckout}
-          disabled={!canConfirm}
-          className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-black tracking-wide uppercase transition-all border ${
-            !canConfirm
-              ? "bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed"
-              : "bg-gradient-to-r from-orange-600 to-red-600 text-white border-transparent hover:from-orange-500 hover:to-red-500 shadow-lg shadow-orange-900/40 hover:scale-[1.01] active:scale-[0.99]"
-          }`}
-        >
-          {loadingOrder ? (
-            <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-          ) : (
-            <>
-              <CreditCard size={18} />
-              Confirmar
-            </>
-          )}
-        </button>
+        {/* BOTÓN COBRAR Y TOTAL */}
+        <div className="flex items-end justify-between gap-4">
+            <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total</span>
+                <span className="text-3xl md:text-4xl font-black text-white tracking-tighter">
+                    ${cartTotal.toFixed(2)}
+                </span>
+            </div>
+
+            <button
+                type="button"
+                onClick={handleValidateAndCheckout}
+                disabled={!canConfirm}
+                className={`flex-1 h-14 flex items-center justify-center gap-2 rounded-2xl font-black text-lg uppercase tracking-wide shadow-lg transition-all active:scale-95 ${
+                    canConfirm 
+                    ? "bg-gradient-to-r from-orange-600 to-orange-500 text-white shadow-orange-900/40 hover:brightness-110" 
+                    : "bg-slate-800 text-slate-500 cursor-not-allowed"
+                }`}
+            >
+                {loadingOrder ? (
+                     <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                     <>
+                        <span>Cobrar</span>
+                        <CreditCard size={22} />
+                     </>
+                )}
+            </button>
+        </div>
+
       </div>
     </div>
   );
