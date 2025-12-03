@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
     "dayjs": "^1.11.19",
     "firebase": "^11.10.0",
     "firebase-admin": "^13.6.0",
@@ -23,6 +25,7 @@
     "recharts": "^3.5.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/cli": "^4.1.17",
     "@testing-library/jest-dom": "^6.9.1",
