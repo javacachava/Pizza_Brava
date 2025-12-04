@@ -1,11 +1,9 @@
 import React, { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
-// --- Imports correctos ---
+// Imports correctos y compatibles con Capacitor 7
 import { StatusBar } from "@capacitor/status-bar";
-import { NavigationBar } from "capacitor-navigation-bar"; // <--- CORRECTO
 import { Capacitor } from "@capacitor/core";
-// ---------------------------
 
 import { useAuth } from "./hooks/useAuth";
 import Login from "./components/Login";
@@ -17,23 +15,16 @@ import NetworkStatus from "./components/NetworkStatus";
 export default function App() {
   const { user, role, loading, error, login, logout } = useAuth();
 
-  // Ejecutar solo cuando corre como app nativa
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const hideBars = async () => {
-        try {
-          await StatusBar.hide(); // Oculta barra superior
+useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    setTimeout(() => {
+      StatusBar.hide().catch(err =>
+        console.log("StatusBar error:", err)
+      );
+    }, 250); // retraso recomendado
+  }
+}, []);
 
-          // Oculta barra inferior con plugin compatible con Capacitor 7
-          await NavigationBar.setVisibility({ visible: false });
-        } catch (err) {
-          console.error("Error ocultando barras:", err);
-        }
-      };
-
-      hideBars();
-    }
-  }, []);
 
   if (loading) {
     return (
