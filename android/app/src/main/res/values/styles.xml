@@ -1,29 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Tema principal de la app -->
-    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
-
-        <!-- FULLSCREEN correcto -->
-        <item name="android:windowFullscreen">true</item>
-
-        <!-- Evita recortes del WebView -->
-        <item name="android:fitsSystemWindows">false</item>
-
-        <!-- Evita que los system bars ocupen espacio -->
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-
-        <!-- Limpieza de ActionBar -->
-        <item name="windowNoTitle">true</item>
-        <item name="windowActionBar">false</item>
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
     </style>
 
-    <!-- Tema del Splash Screen -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+    </style>
+
+
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
-        <item name="android:windowFullscreen">true</item>
-        <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
-
 </resources>
