@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
+// 1. Cargar configuración
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -13,33 +14,27 @@ export const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// --- VALIDACIÓN DE SEGURIDAD (DIAGNÓSTICO) ---
-// Verifica si las keys críticas están presentes. Si falta alguna,
-// es probable que no se hayan configurado en el panel de hosting.
-const requiredKeys = [
-  "apiKey",
-  "authDomain",
-  "projectId",
-  "storageBucket",
-  "messagingSenderId",
-  "appId"
-];
-
+// 2. VALIDACIÓN DE SEGURIDAD CRÍTICA
+const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"];
 const missingKeys = requiredKeys.filter(key => !firebaseConfig[key]);
 
 if (missingKeys.length > 0) {
-  console.error(
-    `%c[CRITICAL ERROR] Faltan variables de entorno de Firebase: ${missingKeys.join(", ")}.`,
-    "color: red; font-weight: bold; font-size: 14px;"
-  );
-  console.error(
-    "La aplicación no funcionará correctamente. Asegúrate de configurar las variables que comienzan con VITE_FIREBASE_... en el panel de control de tu servicio de hosting (Vercel, Netlify, Firebase Hosting, etc)."
+  // Esto lanzará el error a la pantalla gracias al ErrorBoundary
+  throw new Error(
+    `FALTAN CLAVES DE FIREBASE: ${missingKeys.join(", ")}. \n\n` +
+    `Asegúrate de haber creado el archivo .env con las variables VITE_FIREBASE_...`
   );
 }
 
-const app = initializeApp(firebaseConfig);
+// 3. Inicializar Firebase
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+} catch (error) {
+  throw new Error(`Error al inicializar Firebase: ${error.message}`);
+}
 
-// Habilita la persistencia (funciona sin internet)
+// 4. Habilitar persistencia (funciona sin internet)
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
