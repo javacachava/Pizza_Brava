@@ -1,5 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
+
+// --- Import necesarios para ocultar barras en Android/iOS ---
+import { StatusBar } from "@capacitor/status-bar";
+import { NavigationBar } from "@capacitor/navigation-bar";
+import { Capacitor } from "@capacitor/core";
+// ------------------------------------------------------------
 
 import { useAuth } from "./hooks/useAuth";
 import Login from "./components/Login";
@@ -11,6 +17,23 @@ import NetworkStatus from "./components/NetworkStatus";
 export default function App() {
   const { user, role, loading, error, login, logout } = useAuth();
 
+  // 🔥 Ejecutar solo si la app corre como app nativa (Android/iOS)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const hideBars = async () => {
+        try {
+          await StatusBar.hide();       // Oculta barra superior
+          await NavigationBar.hide();   // Oculta barra inferior
+        } catch (err) {
+          console.error("Error ocultando barras:", err);
+        }
+      };
+
+      hideBars();
+    }
+  }, []);
+
+  // --- Pantalla de carga ---
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-slate-100 animate-pulse font-bold text-slate-400">
@@ -19,7 +42,7 @@ export default function App() {
     );
   }
 
-  // NO autenticado → solo Login
+  // --- NO autenticado ---
   if (!user) {
     return (
       <>
@@ -29,7 +52,7 @@ export default function App() {
     );
   }
 
-  // AUTENTICADO → router por rol
+  // --- AUTENTICADO ---
   return (
     <>
       <Toaster
