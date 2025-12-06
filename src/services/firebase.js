@@ -1,8 +1,8 @@
 // src/services/firebase.js
-import { getFirestore, initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+// Importamos initializeFirestore y persistentLocalCache una sola vez
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -16,9 +16,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+
+// Usamos initializeFirestore para configurar el Long Polling y evitar el error de conexión
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true, // Forzar polling en lugar de sockets
-  localCache: persistentLocalCache() // Mantener persistencia offline
+  experimentalForceLongPolling: true,
+  localCache: persistentLocalCache()
 });
 
 export { firebaseConfig };
