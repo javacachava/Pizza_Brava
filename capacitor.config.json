@@ -4,11 +4,12 @@
   "webDir": "dist",
   "bundledWebRuntime": false,
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "cleartext": true 
   },
   "plugins": {
     "CapacitorHttp": {
-      "enabled": true
+      "enabled": false 
     }
   }
 }
