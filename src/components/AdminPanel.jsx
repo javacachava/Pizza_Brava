@@ -37,7 +37,7 @@ import {
   createUserWithEmailAndPassword,
   signOut
 } from "firebase/auth";
-import { db, firebaseConfig } from "../services/firebase";
+import { db } from "../services/firebase";
 import { useConfig } from "../hooks/useConfig";
 import { useOrders } from "../hooks/useOrders";
 import AnalyticsPanel from "./AnalyticsPanel";
