@@ -1,0 +1,128 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --------- HELPERS (Funciones de ayuda) ---------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    // Verifica si el usuario existe y tiene rol
+    function userRole() {
+      return isSignedIn() && exists(userDocPath()) ? get(userDocPath()).data.role : null;
+    }
+
+    function isAdmin() {
+      return userRole() == "admin";
+    }
+
+    function isRecepcion() {
+      return userRole() == "recepcion";
+    }
+
+    function isCocina() {
+      return userRole() == "cocina";
+    }
+
+    function isStaff() {
+      return isAdmin() || isRecepcion() || isCocina();
+    }
+
+    // --------- 1. USUARIOS ---------
+    match /users/{userId} {
+      allow read: if isSignedIn(); // Permitir leer usuarios básicos para validar login
+      allow write: if isAdmin(); // Solo admin crea/edita usuarios
+      allow update: if request.auth.uid == userId; // Usuario puede actualizar su propio perfil (opcional)
+    }
+
+    // --------- 2. REGLAS GLOBALES Y CONFIGURACIÓN ---------
+    // El frontend lee 'rules/global' para saber si enviar a cocina, etc.
+    match /rules/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /configuration/{document=**} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --------- 3. MENÚ Y CATÁLOGOS (Lectura pública para staff, escritura Admin) ---------
+    // Aquí faltaban muchas colecciones que tu ReceptionPanel carga al inicio
+    
+    match /categories/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+    
+    match /menuItems/{id} { // También conocido como 'products' en algunas versiones
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isRecepcion(); // Recepción necesita escribir para el "Modo Stock"
+    }
+    
+    match /products/{id} { // Por si acaso usas esta colección en vez de menuItems
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isRecepcion();
+    }
+
+    match /combos/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /flavors/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /sizes/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /extras/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --------- 4. OPERACIÓN DIARIA (Ventas, Gastos, Cierres) ---------
+
+    match /orders/{orderId} {
+      allow read: if isStaff();
+      allow create: if isStaff(); // Recepción crea órdenes
+      allow update: if isStaff(); // Cocina cambia estado, Admin edita
+    }
+
+    match /expenses/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff(); // Recepción necesita crear gastos (hielo, gas)
+      allow delete: if isAdmin();
+    }
+
+    match /shift_closures/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff(); // Recepción necesita crear el cierre
+      allow update, delete: if isAdmin();
+    }
+    
+    match /daily_stats/{id} {
+      allow read: if isStaff();
+      allow write: if isStaff();
+    }
+
+    match /tickets/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff();
+    }
+
+    // --------- 5. INVENTARIOS (Legacy/Futuro) ---------
+    match /ingredients/{id} { allow read: if isStaff(); allow write: if isAdmin(); }
+    match /sides/{id} { allow read: if isStaff(); allow write: if isAdmin(); }
+    match /drinks/{id} { allow read: if isStaff(); allow write: if isAdmin(); }
+    match /sauces/{id} { allow read: if isStaff(); allow write: if isAdmin(); }
+  }
+}
