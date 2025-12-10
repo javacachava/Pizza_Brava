@@ -12,28 +12,28 @@ export const ProtectedRoute: React.FC<Props> = ({ children, allowedRoles }) => {
     const { user, loading, isAuthenticated } = useAuth();
     const location = useLocation();
 
+    // 1. Mientras carga, mostrar spinner (evita redirecciones prematuras)
     if (loading) {
         return (
-            <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-                 <div className="flex flex-col items-center gap-3">
-                    <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-                    <span className="text-slate-500 text-sm font-medium">Verificando acceso...</span>
-                 </div>
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
+                <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full mb-4"></div>
+                <p className="text-slate-500 font-medium">Verificando credenciales...</p>
             </div>
         );
     }
 
-    // 1. No logueado -> Login
+    // 2. Si terminó de cargar y no hay usuario -> Login
     if (!isAuthenticated || !user) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // 2. Rol no autorizado
+    // 3. Verificación de Rol
     if (allowedRoles && !allowedRoles.includes(user.role) && user.role !== 'admin') {
-        // Redirigir a su área segura
-        const redirectPath = user.role === 'kitchen' ? '/kitchen' : '/pos';
-        return <Navigate to={redirectPath} replace />;
+        // Si intenta entrar donde no debe, lo mandamos a su home segura
+        const safePath = user.role === 'kitchen' ? '/kitchen' : '/pos';
+        return <Navigate to={safePath} replace />;
     }
 
+    // 4. Todo correcto
     return <>{children}</>;
 };

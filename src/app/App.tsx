@@ -26,7 +26,13 @@ const App: React.FC = () => {
       {/* AuthProvider es el nivel más alto */}
       <AuthProvider>
         <DataProviders>
-          <RouterProvider router={router} />
+          {/* SE AGREGÓ EL FLAG 'future' PARA SILENCIAR EL WARNING V7 */}
+          <RouterProvider 
+            router={router} 
+            future={{
+              v7_startTransition: true,
+            }}
+          />
         </DataProviders>
       </AuthProvider>
     </React.StrictMode>

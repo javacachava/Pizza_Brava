@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
-import { getAuth, connectAuthEmulator } from "firebase/auth";
-import { getFunctions, connectFunctionsEmulator } from "firebase/functions";
+import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { getFunctions } from "firebase/functions";
 import { getAnalytics } from "firebase/analytics";
 
 // Configuración oficial de Firebase (credenciales reales)
@@ -23,26 +23,14 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const functions = getFunctions(app);
 
-// Analytics (solo en producción y navegador)
+// Analytics (solo en producción y navegador, no localhost)
 if (typeof window !== "undefined" && location.hostname !== "localhost") {
   getAnalytics(app);
 }
 
-// Emuladores solo en localhost
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-  // Evita error de "ya conectado" con HMR
-  // @ts-ignore
-  if (!db._settingsFrozen) {
-    console.log("🔧 Conectando a Emuladores Firebase...");
-
-    try {
-      connectFirestoreEmulator(db, "127.0.0.1", 8080);
-      connectAuthEmulator(auth, "http://127.0.0.1:9099");
-      connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-    } catch (e) {
-      console.warn("Emuladores ya conectados o error al conectar.");
-    }
-  }
-}
+// NOTA IMPORTANTE:
+// Se han eliminado las líneas de "connectAuthEmulator" y "connectFirestoreEmulator"
+// para cumplir con la REGLA 2: El proyecto debe conectarse a la base de datos REAL,
+// no a emuladores locales vacíos.
 
 export default app;

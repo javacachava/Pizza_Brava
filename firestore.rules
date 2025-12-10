@@ -1,10 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Regla maestra: Permitir todo a usuarios autenticados
-    // (En producción restringiremos más, pero esto desbloquea tu desarrollo ahora)
     match /{document=**} {
+      // PERMITIR TODO SI ESTÁ LOGUEADO
+      // Esto soluciona el error "Missing or insufficient permissions"
       allow read, write: if request.auth != null;
     }
   }

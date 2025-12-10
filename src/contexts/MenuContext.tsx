@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { MenuService } from '../services/domain/MenuService';
 import type { Category } from '../models/Category';
 import type { MenuItem } from '../models/MenuItem';
+import { useAuth } from './AuthContext'; // <--- IMPORTANTE: Importamos el Auth
 
 interface MenuWithItems extends Category {
     items: MenuItem[];
@@ -17,10 +18,14 @@ const MenuContext = createContext<MenuContextType | undefined>(undefined);
 const menuService = new MenuService();
 
 export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user, loading: authLoading } = useAuth(); // <--- IMPORTANTE: Obtenemos el estado de auth
     const [menu, setMenu] = useState<MenuWithItems[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false); // <--- Iniciamos en false para no bloquear si no hay usuario
 
     const refreshMenu = async () => {
+        // SEGURIDAD: Si no hay usuario, no hacemos la petición a Firebase
+        if (!user) return;
+
         setLoading(true);
         try {
             const data = await menuService.getFullMenu();
@@ -33,8 +38,11 @@ export const MenuProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     useEffect(() => {
-        refreshMenu();
-    }, []);
+        // Solo intentamos cargar cuando la autenticación haya terminado de verificar
+        if (!authLoading && user) {
+            refreshMenu();
+        }
+    }, [user, authLoading]); // <--- Se ejecuta cuando cambia el usuario
 
     return (
         <MenuContext.Provider value={{ menu, loading, refreshMenu }}>
