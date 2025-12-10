@@ -5,6 +5,7 @@ export type OrderType = 'dine-in' | 'takeaway' | 'delivery';
 
 export interface Order {
     id?: string;
+    orderNumber?: string;
     customerName: string;
     items: OrderItem[];
     subtotal: number;
