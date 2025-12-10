@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import type { OrderItem } from '../models/OrderItem';
 import { POSService } from '../services/domain/POSService';
 import { useAuth } from './AuthContext';
@@ -11,8 +11,6 @@ interface POSContextType {
     clearCart: () => void;
     placeOrder: (customerName: string, type: 'dine-in' | 'takeaway' | 'delivery', extraData?: any) => Promise<string>;
     total: number;
-    subtotal: number;
-    tax: number;
     isProcessing: boolean;
 }
 
@@ -24,15 +22,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const [cart, setCart] = useState<OrderItem[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
     
-    const subtotal = cart.reduce((acc, item) => acc + item.totalPrice, 0);
-    const taxRate = 0.00;
-    const tax = subtotal * taxRate;
-    const total = subtotal + tax;
+    // Cálculo seguro de totales
+    const total = cart.reduce((acc, item) => acc + item.totalPrice, 0);
 
     const addToCart = (newItem: OrderItem) => {
-        setCart(prev => {
-            return [...prev, newItem];
-        });
+        setCart(prev => [...prev, newItem]);
     };
 
     const removeFromCart = (index: number) => {
@@ -54,48 +48,29 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const clearCart = () => setCart([]);
 
     const placeOrder = async (customerName: string, type: 'dine-in' | 'takeaway' | 'delivery', extraData?: any) => {
-        if (!user) throw new Error("No hay sesión de usuario activa");
-        
+        if (!user) throw new Error("Sesión expirada");
         setIsProcessing(true);
         try {
-            const orderId = await posService.createOrder(
-                cart,
-                customerName,
-                type,
-                user.id,
-                extraData?.tableNumber
-            );
-            
+            const id = await posService.createOrder(cart, customerName, type, user.id, extraData?.tableNumber);
             clearCart();
-            return orderId;
-        } catch (error) {
-            console.error("Error placing order:", error);
-            throw error;
+            return id;
+        } catch (e) {
+            throw e;
         } finally {
             setIsProcessing(false);
         }
     };
 
     return (
-        <POSContext.Provider value={{ 
-            cart, 
-            addToCart, 
-            removeFromCart, 
-            updateQuantity,
-            clearCart, 
-            placeOrder, 
-            total,
-            subtotal,
-            tax,
-            isProcessing
-        }}>
+        <POSContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, placeOrder, total, isProcessing }}>
             {children}
         </POSContext.Provider>
     );
 };
 
-export const usePOS = () => {
+// Exportación nombrada explícita para evitar errores de vite
+export const usePOSContext = () => {
     const context = useContext(POSContext);
-    if (!context) throw new Error("usePOS must be used within POSProvider");
+    if (!context) throw new Error("usePOSContext must be used within POSProvider");
     return context;
 };

@@ -6,98 +6,68 @@ import { Button } from '../../components/ui/Button';
 export const LoginPage: React.FC = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
-    
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setLoading(true);
         setError('');
-        setIsSubmitting(true);
-
         try {
             await login(email, password);
-            navigate('/pos');
-        } catch (err: any) {
-            console.error(err);
-            setError('Credenciales inválidas o error de conexión.');
+            navigate('/pos'); 
+        } catch (err) {
+            setError('Credenciales incorrectas');
         } finally {
-            setIsSubmitting(false);
+            setLoading(false);
         }
     };
 
     return (
-        <div style={{ 
-            height: '100vh', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center', 
-            backgroundColor: '#1a202c',
-            backgroundImage: 'linear-gradient(135deg, #1a202c 0%, #2d3748 100%)'
-        }}>
-            <div style={{ 
-                backgroundColor: 'white', 
-                padding: '40px', 
-                borderRadius: '12px', 
-                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                width: '100%', 
-                maxWidth: '400px' 
-            }}>
-                <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                    <h1 style={{ margin: 0, color: '#ff6b00', fontSize: '2rem' }}>Pizza Brava</h1>
-                    <p style={{ color: '#718096', marginTop: '5px' }}>Sistema de Gestión</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 relative overflow-hidden">
+            {/* Fondo decorativo */}
+            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-orange-500/20 rounded-full blur-[100px]"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px]"></div>
+
+            <div className="bg-white/95 backdrop-blur-xl p-10 rounded-2xl shadow-2xl w-full max-w-md relative z-10 border border-white/20">
+                <div className="text-center mb-8">
+                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Pizza Brava 🍕</h1>
+                    <p className="text-slate-500 mt-2 text-sm">Sistema de Gestión Integrado</p>
                 </div>
 
                 {error && (
-                    <div style={{ 
-                        backgroundColor: '#fff5f5', 
-                        color: '#c53030', 
-                        padding: '10px', 
-                        borderRadius: '6px', 
-                        marginBottom: '20px',
-                        fontSize: '0.9rem',
-                        textAlign: 'center'
-                    }}>
-                        {error}
+                    <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-6 flex items-center gap-2 border border-red-100">
+                        ⚠️ {error}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568', fontWeight: 'bold' }}>Correo Electrónico</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Email</label>
                         <input 
                             type="email" 
-                            required
-                            className="input-field"
+                            className="input-field bg-slate-50" 
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            placeholder="usuario@pizzabrava.com"
-                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                            onChange={e => setEmail(e.target.value)}
+                            placeholder="admin@pizzabrava.com"
+                            required
                         />
                     </div>
-                    
                     <div>
-                        <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9rem', color: '#4a5568', fontWeight: 'bold' }}>Contraseña</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 tracking-wider">Contraseña</label>
                         <input 
                             type="password" 
-                            required
-                            className="input-field"
+                            className="input-field bg-slate-50"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={e => setPassword(e.target.value)}
                             placeholder="••••••••"
-                            style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e0' }}
+                            required
                         />
                     </div>
-
-                    <Button 
-                        type="submit" 
-                        variant="primary" 
-                        disabled={isSubmitting}
-                        style={{ marginTop: '10px', height: '50px', fontSize: '1.1rem' }}
-                    >
-                        {isSubmitting ? 'Ingresando...' : 'Iniciar Sesión'}
+                    <Button type="submit" isLoading={loading} className="w-full h-12 text-base shadow-orange-500/25">
+                        Iniciar Sesión
                     </Button>
                 </form>
             </div>
