@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { Order, OrderStatus } from '../models/Order';
 import { KitchenService } from '../services/domain/KitchenService';
+import { useAuth } from './AuthContext'; // <--- 1. Importamos Auth
 
 interface KitchenContextType {
     orders: Order[];
@@ -12,6 +13,7 @@ const KitchenContext = createContext<KitchenContextType | undefined>(undefined);
 const kitchenService = new KitchenService();
 
 export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { user, loading: authLoading } = useAuth(); // <--- 2. Obtenemos el estado de autenticación
     const [orders, setOrders] = useState<Order[]>([]);
     const [isConnected, setIsConnected] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -22,6 +24,15 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }, []);
 
     useEffect(() => {
+        // <--- 3. REGLA DE SEGURIDAD:
+        // Si está cargando el auth o no hay usuario, NO iniciar el listener de Firestore.
+        if (authLoading || !user) {
+            setOrders([]); // Limpiamos órdenes por seguridad
+            setIsConnected(false);
+            return;
+        }
+
+        // Si llegamos aquí, tenemos usuario. Iniciamos la suscripción.
         const unsubscribe = kitchenService.subscribeToOrders((updatedOrders) => {
             setOrders(updatedOrders);
             setIsConnected(true);
@@ -37,7 +48,7 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
             unsubscribe();
             setIsConnected(false);
         };
-    }, []);
+    }, [user, authLoading]); // <--- 4. Se re-ejecuta solo cuando cambia el estado del usuario
 
     const playAlertSound = () => {
         if (audioRef.current) {
@@ -47,6 +58,8 @@ export const KitchenProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+        // Seguridad extra
+        if (!user) return;
         await kitchenService.updateStatus(orderId, status);
     };
 
