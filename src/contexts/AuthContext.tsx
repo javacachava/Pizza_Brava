@@ -18,12 +18,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authService = container.authService;
   const [user, setUser] = useState<User | null>(null);
   
-  // 🔴 CORRECCIÓN CRÍTICA: Empezamos en TRUE para bloquear renderizados prematuros
+  // Loading global: solo para la carga inicial de la página al abrirse o refrescar
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
-      // setLoading(true); // No reiniciamos loading aquí para evitar parpadeos
       if (currentUser) {
         try {
           const profile = await authService.getUserById(currentUser.uid);
@@ -40,7 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         setUser(null);
       }
-      // ✅ Solo liberamos la app cuando estamos 100% seguros
+      // Solo liberamos la app cuando estamos seguros del estado inicial
       setLoading(false);
     });
 
@@ -48,23 +47,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    setLoading(true);
-    try {
-      const logged = await authService.login(email, pass);
-      setUser(logged);
-    } finally {
-      setLoading(false);
-    }
+    // ⚠️ NO activamos loading global aquí para evitar desmontar toda la UI
+    const logged = await authService.login(email, pass);
+    setUser(logged);
   };
 
   const logout = async () => {
-    setLoading(true);
     await authService.logout();
     setUser(null);
-    setLoading(false);
   };
 
-  // 🛡️ Muro de contención: Si está cargando, NO renderiza la App (ni los errores)
+  // 🛡️ Muro de contención: Solo bloquea si es la carga INICIAL
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">

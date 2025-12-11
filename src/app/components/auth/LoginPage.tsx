@@ -2,17 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { useAuthContext } from '../../../contexts/AuthContext';
 import { Button } from '../ui/Button';
 import { ChefHat, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom'; // 👈 Importante
+import { useNavigate } from 'react-router-dom';
 
 export const LoginPage: React.FC = () => {
-  const { login, loading, isAuthenticated, user } = useAuthContext();
-  const navigate = useNavigate(); // 👈 Hook de navegación
+  const { login, isAuthenticated, user } = useAuthContext();
+  const navigate = useNavigate();
+  
+  // Estado local para la carga del botón (para no bloquear toda la app)
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // 🚀 EFECTO DE REDIRECCIÓN
-  // En cuanto el usuario existe, nos vamos de aquí.
+  // Redirección de seguridad por si el usuario ya tiene sesión al entrar
   useEffect(() => {
     if (isAuthenticated && user) {
       navigate('/', { replace: true });
@@ -29,8 +32,10 @@ export const LoginPage: React.FC = () => {
     }
 
     try {
+      setIsSubmitting(true);
       await login(email, password);
-      // No hace falta navegar aquí, el useEffect lo hará al detectar el cambio
+      // Forzamos navegación inmediata tras éxito
+      navigate('/', { replace: true });
     } catch (err: any) {
       console.error(err);
       const msg = err?.message || 'Error desconocido';
@@ -39,12 +44,14 @@ export const LoginPage: React.FC = () => {
       } else {
         setError('Error al iniciar sesión. Revisa tu conexión.');
       }
+      // Solo desactivamos el loading si falló, si tuvo éxito nos vamos de esta página
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen flex bg-slate-50">
-      {/* Tu diseño actual (Izquierda) */}
+      {/* Diseño Izquierda */}
       <div className="hidden lg:flex w-1/2 bg-slate-900 relative overflow-hidden flex-col justify-between p-12 text-white">
         <div className="relative z-10 flex items-center gap-3">
             <div className="p-2 bg-orange-600 rounded-lg"><ChefHat size={32} /></div>
@@ -57,7 +64,7 @@ export const LoginPage: React.FC = () => {
         <div className="relative z-10 text-sm text-slate-500">© 2025 Pizza Brava.</div>
       </div>
 
-      {/* Formulario (Derecha) */}
+      {/* Formulario Derecha */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md space-y-8">
             <div className="text-center lg:text-left">
@@ -86,7 +93,8 @@ export const LoginPage: React.FC = () => {
                         <input type="password" className="input-field pl-10 w-full" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
                     </div>
                 </div>
-                <Button type="submit" loading={loading} className="w-full py-3 flex justify-center items-center gap-2">
+                {/* Usamos isSubmitting local */}
+                <Button type="submit" loading={isSubmitting} className="w-full py-3 flex justify-center items-center gap-2">
                     Ingresar <ArrowRight size={18} />
                 </Button>
             </form>
