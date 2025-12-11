@@ -2,41 +2,37 @@ import { useEffect, useState, useCallback } from 'react';
 import type { CashFlow } from '../models/CashFlow';
 import type { ICashFlowRepository } from '../repos/interfaces/ICashFlowRepository';
 import { CashService } from '../services/domain/CashService';
-import { useAuthContext } from '../contexts/AuthContext'; // 1. Importar Auth
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useCashFlow(repo: ICashFlowRepository) {
   const service = new CashService(repo);
-  const { user } = useAuthContext(); // 2. Obtener usuario
+  const { user } = useAuthContext();
 
   const [summary, setSummary] = useState<any>(null);
   const [flows, setFlows] = useState<CashFlow[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Definir roles permitidos para ver finanzas
+  // 🛡️ Filtro de roles permitidos para ver dinero
   const canViewFinance = user?.role === 'admin' || user?.role === 'recepcion';
 
   const load = useCallback(async () => {
-    // 🛑 3. ESCUDO: Solo admin y recepcion pasan
+    // SI NO TIENE PERMISO, ABORTAMOS
     if (!canViewFinance) return;
 
     setLoading(true);
     try {
       const all = await repo.getAll();
       setFlows(all);
-
       const info = await service.getDailySummary();
       setSummary(info);
-    } catch (e) {
-      console.error("Error loading cash flow:", e);
+    } catch (e: any) {
+      if (e?.code !== 'permission-denied') {
+        console.error("Error loading cash flow:", e);
+      }
     } finally {
       setLoading(false);
     }
-  }, [canViewFinance, repo]); // Dependencias
-
-  const add = useCallback(async (type: 'income' | 'expense', amount: number, desc?: string) => {
-    await service.register(type, amount, desc);
-    await load();
-  }, [load]);
+  }, [canViewFinance, repo]);
 
   useEffect(() => {
     if (canViewFinance) {
@@ -44,5 +40,5 @@ export function useCashFlow(repo: ICashFlowRepository) {
     }
   }, [canViewFinance, load]);
 
-  return { flows, summary, loading, add, refresh: load };
+  return { flows, summary, loading, add: service.register.bind(service), refresh: load };
 }

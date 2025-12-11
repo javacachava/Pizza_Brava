@@ -4,21 +4,22 @@ import type { Rule } from '../models/Rules';
 import type { ISystemSettingsRepository } from '../repos/interfaces/ISystemSettingsRepository';
 import type { IRulesRepository } from '../repos/interfaces/IRulesRepository';
 import { AdminService } from '../services/domain/AdminService';
-import { useAuthContext } from '../contexts/AuthContext'; // 1. Importar Auth
+import { useAuthContext } from '../contexts/AuthContext';
 
 export function useAdmin(settingsRepo: ISystemSettingsRepository, rulesRepo: IRulesRepository) {
   const service = new AdminService(settingsRepo, rulesRepo);
-  const { user } = useAuthContext(); // 2. Obtener el usuario
+  const { user } = useAuthContext(); // Obtenemos usuario actual
 
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 🛡️ Verificar si es Admin antes de cualquier operación
+  const isAdmin = user?.role === 'admin';
+
   const load = useCallback(async () => {
-    // 🛑 3. ESCUDO DE SEGURIDAD:
-    // Si no hay usuario o NO es admin, no hacemos nada.
-    // Esto evita el error "Missing permissions" en la consola del cocinero.
-    if (!user || user.role !== 'admin') return;
+    // SI NO ES ADMIN, ABORTAMOS SILENCIOSAMENTE
+    if (!isAdmin) return;
 
     setLoading(true);
     try {
@@ -26,18 +27,22 @@ export function useAdmin(settingsRepo: ISystemSettingsRepository, rulesRepo: IRu
       const r = await service.getRules();
       setSettings(s);
       setRules(r);
-    } catch (e) {
-      console.error("Error loading admin settings:", e);
+    } catch (e: any) {
+      // Ignoramos errores de permisos para no ensuciar la consola si hubo race condition
+      if (e?.code !== 'permission-denied') {
+        console.error("Error loading admin settings:", e);
+      }
     } finally {
       setLoading(false);
     }
-  }, [user]); // Dependencia clave: user
+  }, [isAdmin]);
 
+  // Solo ejecutamos el efecto si es Admin
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       load();
     }
-  }, [user, load]);
+  }, [isAdmin, load]);
 
   return { settings, rules, loading, saveSettings: service.updateSettings.bind(service), saveRule: service.saveRule.bind(service), refresh: load };
 }
