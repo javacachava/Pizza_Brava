@@ -4,18 +4,21 @@ import type { Rule } from '../models/Rules';
 import type { ISystemSettingsRepository } from '../repos/interfaces/ISystemSettingsRepository';
 import type { IRulesRepository } from '../repos/interfaces/IRulesRepository';
 import { AdminService } from '../services/domain/AdminService';
-import { useAuthContext } from '../contexts/AuthContext';
+import { useAuthContext } from '../contexts/AuthContext'; // 1. Importar Auth
 
 export function useAdmin(settingsRepo: ISystemSettingsRepository, rulesRepo: IRulesRepository) {
   const service = new AdminService(settingsRepo, rulesRepo);
-  const { isAuthenticated } = useAuthContext();
+  const { user } = useAuthContext(); // 2. Obtener el usuario
 
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [rules, setRules] = useState<Rule[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!isAuthenticated) return; // 🛑
+    // 🛑 3. ESCUDO DE SEGURIDAD:
+    // Si no hay usuario o NO es admin, no hacemos nada.
+    // Esto evita el error "Missing permissions" en la consola del cocinero.
+    if (!user || user.role !== 'admin') return;
 
     setLoading(true);
     try {
@@ -28,23 +31,13 @@ export function useAdmin(settingsRepo: ISystemSettingsRepository, rulesRepo: IRu
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
-
-  const saveSettings = useCallback(async (partial: Partial<SystemSettings>) => {
-    await service.updateSettings(partial);
-    await load();
-  }, [load]);
-
-  const saveRule = useCallback(async (r: Partial<Rule>) => {
-    await service.saveRule(r);
-    await load();
-  }, [load]);
+  }, [user]); // Dependencia clave: user
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (user?.role === 'admin') {
       load();
     }
-  }, [isAuthenticated, load]);
+  }, [user, load]);
 
-  return { settings, rules, loading, saveSettings, saveRule, refresh: load };
+  return { settings, rules, loading, saveSettings: service.updateSettings.bind(service), saveRule: service.saveRule.bind(service), refresh: load };
 }
