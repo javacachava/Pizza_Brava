@@ -1,8 +1,8 @@
 import React from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useRouteError } from 'react-router-dom';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext'; // Ajusta la ruta si es necesario
 
 // Auth Pages
 import { LoginPage } from './components/auth/LoginPage';
@@ -23,10 +23,22 @@ import { RulesManager } from './pages/admin/RulesManager';
 import { POSPage } from './pages/pos/POSPage';
 import { KitchenPage } from './pages/kitchen/KitchenPage';
 
-// Componente para redirección inteligente según rol
+// Componente: Error Boundary simple
+const ErrorPage = () => {
+    const error: any = useRouteError();
+    return (
+        <div className="h-screen flex flex-col items-center justify-center text-center p-4">
+            <h1 className="text-2xl font-bold text-red-600">Algo salió mal</h1>
+            <p className="text-gray-600">{error.statusText || error.message}</p>
+        </div>
+    );
+};
+
+// Componente: Redirección inteligente basada en Rol
 const RootRedirect: React.FC = () => {
     const { user, isAuthenticated, loading } = useAuth();
 
+    // 1. Si está cargando la sesión inicial, mostramos spinner
     if (loading) {
         return (
             <div className="h-screen w-full flex items-center justify-center bg-slate-50">
@@ -35,21 +47,45 @@ const RootRedirect: React.FC = () => {
         );
     }
 
-    if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+    // 2. Si NO está autenticado, al Login
+    if (!isAuthenticated || !user) {
+        return <Navigate to="/login" replace />;
+    }
     
-    // Redirección por rol
-    switch (user.role) {
+    // 3. Redirección por rol (Lógica de Negocio)
+    // Usamos toLowerCase() por seguridad
+    const role = user.role?.toLowerCase();
+
+    switch (role) {
         case 'admin': return <Navigate to="/admin" replace />;
         case 'recepcion': return <Navigate to="/pos" replace />;
         case 'cocina': return <Navigate to="/kitchen" replace />;
-        default: return <Navigate to="/login" replace />;
+        default: 
+            // FALLBACK SEGURO: Si el rol no existe o está mal escrito,
+            // NO redirigimos a login (bucle infinito), mostramos mensaje.
+            return (
+                <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+                    <h1 className="text-xl font-bold text-gray-800">Acceso Restringido</h1>
+                    <p className="text-gray-600 mb-4">
+                        Tu usuario ({user.email}) tiene el rol <span className="font-mono bg-gray-200 px-1 rounded">{user.role}</span>, 
+                        el cual no tiene un panel asignado.
+                    </p>
+                    <button 
+                        onClick={() => window.location.reload()} 
+                        className="text-orange-600 hover:underline"
+                    >
+                        Recargar
+                    </button>
+                </div>
+            );
     }
 };
 
 export const router = createBrowserRouter([
     {
         path: '/',
-        element: <RootRedirect />
+        element: <RootRedirect />,
+        errorElement: <ErrorPage />
     },
     {
         path: 'login',
@@ -66,15 +102,13 @@ export const router = createBrowserRouter([
             { path: '', element: <Dashboard /> },
             { path: 'products', element: <ProductsManager /> },
             { path: 'categories', element: <CategoriesManager /> },
-            { path: 'combos', element: <CombosManager /> }, // 👈 Faltaba
-            { path: 'orders', element: <CashClose /> },     // Cierre de caja
+            { path: 'combos', element: <CombosManager /> },
+            { path: 'orders', element: <CashClose /> },
             { path: 'users', element: <UsersManager /> },
-            
-            // Sub-módulos de Configuración de Menú
-            { path: 'ingredients', element: <IngredientsManager /> }, // 👈 Faltaba
-            { path: 'flavors', element: <FlavorsManager /> },         // 👈 Faltaba
-            { path: 'sizes', element: <SizesManager /> },             // 👈 Faltaba
-            { path: 'rules', element: <RulesManager /> },             // 👈 Faltaba
+            { path: 'ingredients', element: <IngredientsManager /> },
+            { path: 'flavors', element: <FlavorsManager /> },
+            { path: 'sizes', element: <SizesManager /> },
+            { path: 'rules', element: <RulesManager /> },
         ]
     },
     {

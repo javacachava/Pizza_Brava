@@ -18,28 +18,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authService = container.authService;
   const [user, setUser] = useState<User | null>(null);
   
-  // Loading global: solo para la carga inicial de la página al abrirse o refrescar
+  // Principio de Responsabilidad Única:
+  // Este loading solo indica si "estamos verificando la sesión inicial de Firebase".
+  // NO debe usarse para indicar que un botón de login está cargando.
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      // No activamos setLoading(true) aquí para evitar parpadeos innecesarios en recargas suaves
       if (currentUser) {
         try {
           const profile = await authService.getUserById(currentUser.uid);
           if (profile && profile.isActive) {
             setUser(profile);
           } else {
+            // Usuario existe en Firebase pero no en BD o inactivo
             await authService.logout();
             setUser(null);
           }
         } catch (e) {
-          console.error("Error sesión:", e);
+          console.error("[Auth] Error validando sesión:", e);
           setUser(null);
         }
       } else {
         setUser(null);
       }
-      // Solo liberamos la app cuando estamos seguros del estado inicial
       setLoading(false);
     });
 
@@ -47,22 +50,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    // ⚠️ NO activamos loading global aquí para evitar desmontar toda la UI
+    // SOLID: No manipulamos el estado global 'loading' aquí.
+    // La UI específica (Login form) debe encargarse de su propio feedback visual.
     const logged = await authService.login(email, pass);
     setUser(logged);
   };
 
   const logout = async () => {
-    await authService.logout();
-    setUser(null);
+    try {
+      await authService.logout();
+    } finally {
+      setUser(null);
+    }
   };
 
-  // 🛡️ Muro de contención: Solo bloquea si es la carga INICIAL
+  // Bloqueo solo durante la carga INICIAL (Refresh de página)
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
         <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full"></div>
-        <p className="mt-4 text-slate-500 font-medium animate-pulse">Cargando sistema...</p>
+        <p className="mt-4 text-slate-500 font-medium animate-pulse">Iniciando sistema...</p>
       </div>
     );
   }
