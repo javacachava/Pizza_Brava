@@ -1,10 +1,124 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // PERMITIR TODO SI ESTÁ LOGUEADO
-      // Esto soluciona el error "Missing or insufficient permissions"
-      allow read, write: if request.auth != null;
+
+    // =========================================================
+    // 🔐 FUNCIONES DE SEGURIDAD (HELPERS)
+    // =========================================================
+    
+    // Verifica si el usuario está autenticado en Firebase Auth
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Obtiene los datos del usuario actual desde la colección 'users'
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Verifica si el usuario tiene un rol específico
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+
+    // Roles específicos
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isReception() {
+      return hasRole('recepcion');
+    }
+
+    function isKitchen() {
+      return hasRole('cocina');
+    }
+
+    // =========================================================
+    // 📂 REGLAS POR COLECCIÓN
+    // =========================================================
+
+    // 1. USUARIOS
+    // - Admin: Control total.
+    // - Otros: Solo pueden leer (necesario para login y perfiles).
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 2. MENÚ Y CATÁLOGO (Productos, Categorías, Combos, etc.)
+    // - Admin: Puede editar/borrar.
+    // - Recepción/Cocina: Solo lectura (para vender y cocinar).
+    match /menuItems/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /categories/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /combos/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /combo_instances/{document=**} { // Instancias de combos vendidos
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isReception();
+    }
+    match /ingredients/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /flavors/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /sizes/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /options/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /rules/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 3. ÓRDENES (El corazón del sistema)
+    // - Crear: Admin y Recepción.
+    // - Leer: Todos (Cocina necesita verlas).
+    // - Actualizar: Todos (Cocina cambia estado, Recepción agrega items).
+    // - Borrar: SOLO Admin.
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || isReception();
+      allow update: if isAuthenticated(); // Cocina necesita actualizar estado a 'listo'
+      allow delete: if isAdmin();
+    }
+
+    // 4. MESAS
+    // - Admin/Recepción: Gestionan estado (ocupada/libre).
+    match /tables/{tableId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isReception();
+    }
+
+    // 5. CAJA Y FINANZAS (CashFlow)
+    // - Cocina NO debe ver esto.
+    match /cashFlow/{docId} {
+      allow read, write: if isAdmin() || isReception();
+    }
+
+    // 6. CONFIGURACIÓN DEL SISTEMA
+    match /systemInfo/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /system_settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
   }
 }

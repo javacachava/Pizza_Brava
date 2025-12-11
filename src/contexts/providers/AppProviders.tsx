@@ -4,25 +4,16 @@ import type { ReactNode } from 'react';
 import { container } from '../../models/di/container';
 
 // PROVIDERS
-import { AuthProvider } from './AuthProvider';
-import { AdminProvider } from './AdminProvider';
-import { MenuProvider } from './MenuProvider';
-import { OrderProvider } from './OrderProvider';
-import { POSProvider } from './POSProvider';
+// IMPORTANTE: Importamos desde los Contextos Reales (../) no desde la carpeta actual (./)
+// para evitar duplicidad de instancias.
+import { AuthProvider } from '../AuthContext'; 
+import { AdminProvider } from '../AdminContext';
+import { MenuProvider } from '../MenuContext';
+import { KitchenProvider } from '../KitchenContext';
+import { POSProvider } from '../POSContext';
 
-/**
- * APP PROVIDERS TREE
- * Arquitectura profesional:
- *
- * AuthProvider
- *   AdminProvider
- *     MenuProvider
- *       OrderProvider
- *         POSProvider
- *           { children }
- *
- * Cada uno obtiene sus dependencias del DI Container.
- */
+// OrderProvider es el único que parece vivir solo en esta carpeta, lo mantenemos así
+import { OrderProvider } from './OrderProvider'; 
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -31,12 +22,20 @@ interface AppProvidersProps {
 export const AppProviders = ({ children }: AppProvidersProps) => {
   return (
     <AuthProvider>
-      <AdminProvider>
-        <MenuProvider>
+      <AdminProvider
+        settingsRepo={container.systemSettingsRepo}
+        rulesRepo={container.rulesRepo}
+      >
+        <MenuProvider
+          menuRepo={container.menuRepo}
+          categoryRepo={container.categoryRepo}
+        >
           <OrderProvider>
-            <POSProvider>
-              {children}
-            </POSProvider>
+            <KitchenProvider orderRepo={container.ordersRepo}>
+              <POSProvider>
+                {children}
+              </POSProvider>
+            </KitchenProvider>
           </OrderProvider>
         </MenuProvider>
       </AdminProvider>
