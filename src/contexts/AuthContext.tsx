@@ -18,86 +18,64 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authService = container.authService;
   const [user, setUser] = useState<User | null>(null);
   
-  // Estados para el diagnóstico
+  // Estado de carga inicial
   const [loading, setLoading] = useState(true);
-  const [statusMessage, setStatusMessage] = useState('Iniciando servicios...');
-  const [showEmergencyExit, setShowEmergencyExit] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Iniciando sistema...');
 
   useEffect(() => {
     let isMounted = true;
     
-    // 1. Timer de seguridad: Si en 5 segundos no entra, mostramos botón de emergencia
-    const safetyTimer = setTimeout(() => {
-      if (isMounted && loading) {
-        setStatusMessage('El sistema está tardando más de lo normal...');
-        setShowEmergencyExit(true);
-      }
-    }, 5000);
+    // Escuchamos cambios en la autenticación
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
+      if (!isMounted) return;
 
-    const runAuthCheck = () => {
-        setStatusMessage('Conectando con Firebase Auth...');
-        
-        const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
-          if (!isMounted) return;
-
-          if (currentUser) {
-            try {
-              setStatusMessage(`Usuario detectado (${currentUser.email}). Buscando perfil...`);
-              
-              // Intentamos obtener el perfil de base de datos
-              const profile = await authService.getUserById(currentUser.uid);
-              
-              if (!isMounted) return;
-
-              if (profile) {
-                if (profile.isActive) {
-                    setStatusMessage('Perfil verificado. Entrando al sistema...');
-                    setUser(profile);
-                } else {
-                    setStatusMessage('Usuario inactivo. Cerrando sesión...');
-                    await authService.logout();
-                    setUser(null);
-                }
+      try {
+        if (currentUser) {
+          setStatusMessage(`Verificando usuario (${currentUser.email})...`);
+          
+          try {
+            // Intentamos obtener el perfil extendido
+            const profile = await authService.getUserById(currentUser.uid);
+            
+            if (isMounted) {
+              if (profile && profile.isActive) {
+                setUser(profile);
               } else {
-                setStatusMessage('Perfil no encontrado en base de datos. Cerrando sesión...');
-                // Si existe en Auth pero no en BD, lo sacamos
+                console.warn("Usuario sin perfil válido o inactivo.");
                 await authService.logout();
                 setUser(null);
               }
-            } catch (e: any) {
-              console.error("[Auth] Error crítico:", e);
-              setStatusMessage(`Error cargando perfil: ${e.message || 'Desconocido'}`);
-              // No quitamos el loading inmediatamente para que el usuario lea el error
-              // Pero habilitamos la salida de emergencia
-              setShowEmergencyExit(true);
-              return; // Detenemos aquí para mostrar el error
             }
-          } else {
-            setStatusMessage('No hay sesión activa.');
+          } catch (profileError: any) {
+            console.error("[Auth] Error al cargar perfil:", profileError);
+            // Si falla la carga del perfil, cerramos sesión para evitar el limbo
+            await authService.logout();
             setUser(null);
           }
-
-          // Todo salió bien
-          setStatusMessage('Listo.');
-          setLoading(false);
-          clearTimeout(safetyTimer);
-        });
-
-        return unsubscribe;
-    };
-
-    const unsubscribeFn = runAuthCheck();
+        } else {
+          // No hay usuario logueado
+          setUser(null);
+        }
+      } catch (globalError) {
+        console.error("[Auth] Error general:", globalError);
+        setUser(null);
+      } finally {
+        // IMPORTANTE: Esto asegura que el loading SIEMPRE se quite
+        if (isMounted) {
+            setLoading(false);
+            setStatusMessage('');
+        }
+      }
+    });
 
     return () => {
       isMounted = false;
-      clearTimeout(safetyTimer);
-      if (typeof unsubscribeFn === 'function') unsubscribeFn();
+      unsubscribe();
     };
   }, []);
 
   const login = async (email: string, pass: string) => {
-    // No activamos loading global aquí para no bloquear la UI si falla el login
-    // El formulario de Login manejará su propio estado
+    // No activamos loading global aquí, dejamos que el formulario lo maneje
     const logged = await authService.login(email, pass);
     setUser(logged);
   };
@@ -110,35 +88,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // --- PANTALLA DE CARGA CON DIAGNÓSTICO ---
+  // Pantalla de carga (solo al inicio)
   if (loading) {
     return (
-      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4 text-center">
-        {/* Spinner */}
-        <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full mb-6"></div>
-        
-        {/* Mensaje de Estado (Diagnóstico) */}
-        <p className="text-slate-700 font-medium text-lg animate-pulse">
-            {statusMessage}
-        </p>
-        
-        {/* Botón de Emergencia (Aparece a los 5 seg o si hay error) */}
-        {showEmergencyExit && (
-            <div className="mt-8 p-4 bg-white border border-slate-200 rounded-lg shadow-sm max-w-sm">
-                <p className="text-slate-500 text-sm mb-3">
-                    Parece que hay problemas de conexión o el servidor no responde.
-                </p>
-                <button 
-                    onClick={() => {
-                        setLoading(false); // Forzamos quitar la pantalla de carga
-                        authService.logout().catch(() => {}); // Intentamos limpiar por si acaso
-                    }}
-                    className="px-4 py-2 bg-slate-800 text-white text-sm rounded hover:bg-slate-700 transition-colors w-full"
-                >
-                    Forzar ir al Login
-                </button>
-            </div>
-        )}
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4">
+        <div className="animate-spin h-10 w-10 border-4 border-orange-500 border-t-transparent rounded-full mb-4"></div>
+        <p className="text-slate-600 font-medium animate-pulse">{statusMessage}</p>
       </div>
     );
   }
