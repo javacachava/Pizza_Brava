@@ -6,9 +6,10 @@ import { calculateCartTotal } from '../../../utils/pos';
 
 interface Props {
   cart: OrderItem[];
-  onIncrease: (id: string) => void;
-  onDecrease: (id: string) => void;
-  onRemove: (id: string) => void;
+  // Cambiamos string por number para manejar índices exactos
+  onIncrease: (index: number) => void;
+  onDecrease: (index: number) => void;
+  onRemove: (index: number) => void;
   onSubmitOrder: () => void;
 }
 
@@ -22,30 +23,32 @@ export const CartSidebar: React.FC<Props> = ({
   const total = calculateCartTotal(cart);
 
   return (
-    <div className="bg-white w-80 border-l fixed right-0 top-0 h-full flex flex-col">
+    <div className="bg-white w-80 border-l fixed right-0 top-0 h-full flex flex-col shadow-xl z-20">
       <div className="flex-1 overflow-auto p-3">
 
-        <h2 className="font-semibold text-xl mb-4">Carrito</h2>
+        <h2 className="font-semibold text-xl mb-4 text-gray-800 border-b pb-2">Orden Actual</h2>
 
-        {cart.map(item => (
+        {/* Usamos 'index' para identificar la línea exacta en el carrito */}
+        {cart.map((item, index) => (
           <CartItem
-            key={item.productId}
+            key={`${item.productId}-${index}`} // Key única combinada
             item={item}
-            onIncrease={() => item.productId && onIncrease(item.productId)}
-            onDecrease={() => item.productId && onDecrease(item.productId)}
-            onRemove={() => item.productId && onRemove(item.productId)}
+            onIncrease={() => onIncrease(index)}
+            onDecrease={() => onDecrease(index)}
+            onRemove={() => onRemove(index)}
           />
         ))}
 
         {cart.length === 0 && (
-          <p className="text-gray-500 text-sm mt-8 text-center">
-            No hay productos
-          </p>
+          <div className="h-full flex flex-col items-center justify-center text-gray-400">
+            <span className="text-4xl mb-2">🛒</span>
+            <p className="text-sm">El carrito está vacío</p>
+          </div>
         )}
       </div>
 
-      <div className="border-t p-4">
-        <div className="flex justify-between font-bold text-lg mb-3">
+      <div className="border-t p-4 bg-gray-50">
+        <div className="flex justify-between font-bold text-lg mb-3 text-gray-800">
           <span>Total:</span>
           <span>${total.toFixed(2)}</span>
         </div>
@@ -53,9 +56,9 @@ export const CartSidebar: React.FC<Props> = ({
         <Button
           onClick={onSubmitOrder}
           disabled={cart.length === 0}
-          className="w-full"
+          className="w-full py-3 text-lg shadow-md hover:shadow-lg transition-all"
         >
-          Finalizar Orden
+          Cobrar / Enviar
         </Button>
       </div>
     </div>
