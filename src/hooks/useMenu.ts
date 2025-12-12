@@ -1,15 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
-// ... imports ...
-import { useAuthContext } from '../contexts/AuthContext'; // Importar contexto
-import type { MenuItem } from '../models';
-import type { Category } from '../models';
+import { useAuthContext } from '../contexts/AuthContext';
+import type { MenuItem } from '../models/MenuItem'; // Ajusta imports según tu estructura
+import type { Category } from '../models/Category';
 import type { IMenuRepository } from '../repos/interfaces/IMenuRepository';
 import type { ICategoryRepository } from '../repos/interfaces/ICategoryRepository';
 import { MenuService } from '../services/domain/MenuService';
 
 export function useMenu(menuRepo: IMenuRepository, categoryRepo: ICategoryRepository) {
   const menuService = new MenuService(menuRepo, categoryRepo);
-  const { isAuthenticated } = useAuthContext(); // Obtener estado
+  const { isAuthenticated } = useAuthContext();
 
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -30,11 +29,19 @@ export function useMenu(menuRepo: IMenuRepository, categoryRepo: ICategoryReposi
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]); // Dependencia clave
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
         load();
     }
-  }, [isAuthenticated, load]); // Solo carga cuando cambia
+  }, [isAuthenticated, load]);
+
+  // 👇 ESTO FALTABA: Retornar el objeto que espera el Contexto
+  return {
+    items,
+    categories,
+    loading,
+    refresh: load
+  };
 }
