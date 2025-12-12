@@ -3,122 +3,78 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =========================================================
-    // 🔐 FUNCIONES DE SEGURIDAD (HELPERS)
+    // 🛡️ HELPERS SEGUROS
     // =========================================================
-    
-    // Verifica si el usuario está autenticado en Firebase Auth
+
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Obtiene los datos del usuario actual desde la colección 'users'
+    // VERSIÓN SEGURA: Verifica que el documento exista antes de pedir .data
     function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data : {};
     }
 
-    // Verifica si el usuario tiene un rol específico
-    function hasRole(role) {
-      return isAuthenticated() && getUserData().role == role;
+    // Obtiene el rol de forma segura, manejando nulos y mayúsculas
+    function getUserRole() {
+      let data = getUserData();
+      return (data != null && 'role' in data) ? data.role.lower() : '';
     }
 
-    // Roles específicos
     function isAdmin() {
-      return hasRole('admin');
+      return isAuthenticated() && getUserRole() == 'admin';
     }
 
     function isReception() {
-      return hasRole('recepcion');
+      return isAuthenticated() && getUserRole() == 'recepcion';
     }
 
     function isKitchen() {
-      return hasRole('cocina');
+      return isAuthenticated() && getUserRole() == 'cocina';
     }
 
     // =========================================================
-    // 📂 REGLAS POR COLECCIÓN
+    // 📂 REGLAS
     // =========================================================
 
-    // 1. USUARIOS
-    // - Admin: Control total.
-    // - Otros: Solo pueden leer (necesario para login y perfiles).
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      // Permitir al usuario leer SU PROPIO perfil para el login
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin();
     }
 
-    // 2. MENÚ Y CATÁLOGO (Productos, Categorías, Combos, etc.)
-    // - Admin: Puede editar/borrar.
-    // - Recepción/Cocina: Solo lectura (para vender y cocinar).
-    match /menuItems/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /categories/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /combos/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /combo_instances/{document=**} { // Instancias de combos vendidos
-      allow read: if isAuthenticated();
-      allow create: if isAdmin() || isReception();
-    }
-    match /ingredients/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /flavors/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /sizes/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /options/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /rules/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-
-    // 3. ÓRDENES (El corazón del sistema)
-    // - Crear: Admin y Recepción.
-    // - Leer: Todos (Cocina necesita verlas).
-    // - Actualizar: Todos (Cocina cambia estado, Recepción agrega items).
-    // - Borrar: SOLO Admin.
     match /orders/{orderId} {
+      // Lectura abierta a autenticados (necesario para KDS)
       allow read: if isAuthenticated();
+      // Crear: Admin o Recepción
       allow create: if isAdmin() || isReception();
-      allow update: if isAuthenticated(); // Cocina necesita actualizar estado a 'listo'
+      // Actualizar: Cocina (cambiar estado) o Recepción/Admin
+      allow update: if isAuthenticated(); 
+      // Borrar: Solo Admin
       allow delete: if isAdmin();
     }
 
-    // 4. MESAS
-    // - Admin/Recepción: Gestionan estado (ocupada/libre).
+    // ... Resto de tus reglas para menuItems, tables, etc. ...
+    match /menuItems/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /categories/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /ingredients/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /flavors/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /sizes/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /combos/{docId} { allow read: if isAuthenticated(); allow write: if isAdmin(); }
+    match /combo_instances/{docId} { allow read: if isAuthenticated(); allow create: if isAdmin() || isReception(); }
+    
     match /tables/{tableId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isReception();
     }
 
-    // 5. CAJA Y FINANZAS (CashFlow)
-    // - Cocina NO debe ver esto.
     match /cashFlow/{docId} {
       allow read, write: if isAdmin() || isReception();
     }
-
-    // 6. CONFIGURACIÓN DEL SISTEMA
-    match /systemInfo/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
-    match /system_settings/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
-    }
+    
+    match /system_settings/{docId} { allow read, write: if isAdmin(); }
+    match /rules/{docId} { allow read, write: if isAdmin(); }
+    match /systemInfo/{docId} { allow read, write: if isAdmin(); }
   }
 }
