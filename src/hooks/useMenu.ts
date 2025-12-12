@@ -3,26 +3,21 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { container } from '../models/di/container';
 import type { MenuItem } from '../models/MenuItem';
 import type { Category } from '../models/Category';
-import type { ComboDefinition } from '../models/ComboDefinition'; // <--- USAR DEFINICIÓN
-import type { IMenuRepository } from '../repos/interfaces/IMenuRepository';
-import type { ICategoryRepository } from '../repos/interfaces/ICategoryRepository';
-import type { IComboDefinitionRepository } from '../repos/interfaces/IComboDefinitionRepository';
+import type { ComboDefinition } from '../models/ComboDefinition';
 import { MenuService } from '../services/domain/MenuService';
 import { ComboService } from '../services/domain/ComboService';
 
-export function useMenu(
-  menuRepo: IMenuRepository = container.menuRepo,
-  categoryRepo: ICategoryRepository = container.categoryRepo,
-  comboDefRepo: IComboDefinitionRepository = container.comboDefRepo
-) {
+export function useMenu() {
   const { isAuthenticated } = useAuthContext();
   
-  const menuService = new MenuService(menuRepo, categoryRepo);
-  const comboService = new ComboService(comboDefRepo, menuRepo); 
+  // Instancia servicios usando inyección manual del container
+  const menuService = new MenuService(container.menuRepo, container.categoryRepo);
+  // Asumiendo que el constructor de ComboService recibe ComboDefinitionRepository y MenuRepository
+  const comboService = new ComboService(container.comboDefRepo, container.menuRepo);
 
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [combos, setCombos] = useState<ComboDefinition[]>([]); // <--- TIPO CORRECTO
+  const [combos, setCombos] = useState<ComboDefinition[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -30,33 +25,31 @@ export function useMenu(
 
     setLoading(true);
     try {
-      const [itemsList, categoriesList, combosList] = await Promise.all([
+      // Carga paralela para performance óptima
+      const [fetchedItems, fetchedCategories, fetchedCombos] = await Promise.all([
         menuService.getMenu(),
         menuService.getCategories(),
-        comboService.getDefinitions() 
+        comboService.getDefinitions()
       ]);
 
-      setItems(itemsList);
-      setCategories(categoriesList);
-      setCombos(combosList); // Ya no requiere casting forzado
+      setItems(fetchedItems);
+      setCategories(fetchedCategories);
+      setCombos(fetchedCombos);
     } catch (e) {
-      console.error("Error cargando menú:", e);
+      console.error("Error crítico cargando menú POS:", e);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, menuService, comboService]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-        load();
-    }
+    if (isAuthenticated) load();
   }, [isAuthenticated, load]);
 
   return {
-    items,
-    products: items,
-    combos,
     categories,
+    products: items, // Alias 'products' para la UI
+    combos,
     loading,
     refresh: load
   };
