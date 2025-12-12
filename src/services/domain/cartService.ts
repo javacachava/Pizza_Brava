@@ -4,9 +4,6 @@ import type { ComboDefinition } from '../../models/ComboDefinition';
 import { generateId } from '../../utils/id';
 
 export const cartService = {
-  /**
-   * Crea un OrderItem a partir de un producto simple.
-   */
   createItemFromProduct(product: MenuItem, quantity: number = 1, notes: string = ''): OrderItem {
     return {
       productId: product.id,
@@ -20,17 +17,14 @@ export const cartService = {
     };
   },
 
-  /**
-   * Crea un OrderItem a partir de una definición de combo y sus selecciones.
-   * Transforma la "Definición" del menú en una "Instancia" comprada.
-   */
   createItemFromCombo(
     definition: ComboDefinition, 
-    selections: any[] // Idealmente tipado como ComboItemSelection[]
+    selections: any[] 
   ): OrderItem {
+    // Generamos ID aquí, pero NO lo usaremos para comparar igualdad
     const instanceId = generateId();
     return {
-      productId: null, // Es un combo, no un producto base único
+      productId: null, 
       productName: definition.name,
       quantity: 1,
       unitPrice: definition.price,
@@ -38,18 +32,16 @@ export const cartService = {
       isCombo: true,
       comment: '',
       combo: {
-        id: instanceId,
-        comboDefinitionId: definition.id,
+        id: instanceId, // Este ID es único por instancia
+        comboDefinitionId: definition.id, // Este ID es el que define "qué es"
         name: definition.name,
         price: definition.price,
-        items: selections // Items seleccionados dentro del combo
-      }
+        items: selections
+      },
+      selectedOptions: []
     };
   },
 
-  /**
-   * Recalcula el precio total de un item.
-   */
   recalculateItem(item: OrderItem): OrderItem {
     return {
       ...item,
@@ -58,32 +50,45 @@ export const cartService = {
   },
 
   /**
-   * Agrega un item al carrito o incrementa si ya existe (solo si es idéntico).
+   * Agrega item evitando duplicados visuales.
+   * Compara profundamente el contenido, ignorando IDs transaccionales.
    */
   addItem(cart: OrderItem[], newItem: OrderItem): OrderItem[] {
-    // Buscar si existe un item idéntico (mismo ID y mismas opciones/notas)
-    const existingIndex = cart.findIndex(item => 
-      item.productId === newItem.productId &&
-      item.isCombo === newItem.isCombo &&
-      JSON.stringify(item.selectedOptions) === JSON.stringify(newItem.selectedOptions) &&
-      JSON.stringify(item.combo) === JSON.stringify(newItem.combo) && // Comparación profunda para combos
-      item.comment === newItem.comment
-    );
+    const existingIndex = cart.findIndex(item => {
+      // 1. Verificar si es el mismo producto base o definición de combo
+      const sameProduct = item.productId === newItem.productId;
+      const sameComboDef = item.isCombo && newItem.isCombo && item.combo?.comboDefinitionId === newItem.combo?.comboDefinitionId;
+      
+      if (!sameProduct && !sameComboDef) return false;
+
+      // 2. Verificar notas/comentarios iguales
+      if ((item.comment || '') !== (newItem.comment || '')) return false;
+
+      // 3. Verificar opciones seleccionadas (Ingredientes, etc.)
+      // Simplificado: Stringify de opciones ordenadas
+      const opts1 = JSON.stringify(item.selectedOptions?.sort((a,b) => a.id.localeCompare(b.id)));
+      const opts2 = JSON.stringify(newItem.selectedOptions?.sort((a,b) => a.id.localeCompare(b.id)));
+      if (opts1 !== opts2) return false;
+
+      // 4. Si es combo, verificar que lleve lo mismo por dentro (Bebida, Pizza exacta, etc)
+      if (item.isCombo) {
+        const items1 = JSON.stringify(item.combo?.items); // Asumiendo estructura determinista
+        const items2 = JSON.stringify(newItem.combo?.items);
+        if (items1 !== items2) return false;
+      }
+
+      return true;
+    });
 
     if (existingIndex >= 0) {
-      // Si existe, incrementamos cantidad
+      // Si es idéntico, solo sumamos cantidad
       return this.updateQuantity(cart, existingIndex, newItem.quantity);
     }
 
-    // Si no, agregamos al final
+    // Si es diferente, nueva línea
     return [...cart, newItem];
   },
 
-  /**
-   * Actualiza cantidad por índice. Elimina si la cantidad es < 1 explícitamente? 
-   * Regla de negocio: Aquí NO eliminamos automáticamente, eso debe ser una acción explícita 'remove'.
-   * Pero impedimos bajar de 1.
-   */
   updateQuantity(cart: OrderItem[], index: number, delta: number): OrderItem[] {
     if (index < 0 || index >= cart.length) return cart;
 
@@ -91,7 +96,7 @@ export const cartService = {
     const item = { ...newCart[index] };
     const newQty = item.quantity + delta;
 
-    if (newQty < 1) return cart; // Mínimo 1
+    if (newQty < 1) return cart; 
 
     item.quantity = newQty;
     newCart[index] = this.recalculateItem(item);
@@ -99,16 +104,10 @@ export const cartService = {
     return newCart;
   },
 
-  /**
-   * Elimina un item por índice.
-   */
   removeItem(cart: OrderItem[], index: number): OrderItem[] {
     return cart.filter((_, i) => i !== index);
   },
 
-  /**
-   * Calcula el total de toda la orden.
-   */
   calculateTotal(cart: OrderItem[]): number {
     return cart.reduce((acc, item) => acc + item.totalPrice, 0);
   }
