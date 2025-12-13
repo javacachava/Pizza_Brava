@@ -15,7 +15,7 @@ export const ProductCard: React.FC<Props> = ({ item, type, onClick }) => {
   // Se considera combo SOLO si viene de la tabla de combos (type='COMBO') 
   // O si su categoría es explícitamente 'combos'.
   // IGNORAMOS comboEligible para la UI.
-  const isCombo = type === 'COMBO' || (item as MenuItem).categoryId === 'combos';
+  const isCombo = type === 'COMBO' ;
   
   // Obtenemos el tema basado en categoría real
   const categoryKey = isCombo ? 'combos' : (item as MenuItem).categoryId || 'all';
