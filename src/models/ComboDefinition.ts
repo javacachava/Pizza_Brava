@@ -11,6 +11,9 @@ export interface ComboSlot {
   id: string;
   name: string;
   max: number;
+  // Agregadas para compatibilidad con utils/combo.ts
+  min?: number; 
+  required?: boolean | string; // Puede ser 'required' (string) según tu validador
   allowedProductIds: ID[];
 }
 
@@ -18,12 +21,10 @@ export interface ComboDefinition {
   id: ID;
   categoryId: string; // "combos"
   name: string;
-  description?: string; // Opcional en BD, pero usado en UI
-  price: number;        // <--- FALTABA ESTO
-  isAvailable: boolean; // <--- FALTABA ESTO
+  description?: string;
+  price: number;        // Nota: Se llama 'price', no 'basePrice'
+  isAvailable: boolean;
   itemsIncluded: string[]; 
-  rules: ComboRules;    // <--- FALTABA ESTO
-  
-  // Slots opcionales para la lógica de selección (si tu UI lo requiere para armar combos dinámicos)
+  rules: ComboRules;
   slots?: ComboSlot[]; 
 }

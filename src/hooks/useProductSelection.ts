@@ -1,52 +1,55 @@
 import { useState, useMemo, useEffect } from 'react';
-import type { Product, ComboOption, VariantOption } from '../models/ProductTypes';
+import type { ProductUI, ComboOption, VariantOption } from '../models/ProductTypes';
 
-export const useProductSelection = (product: Product) => {
-  // Estados para los 3 motores
+export const useProductSelection = (product: ProductUI) => {
   const [comboSelections, setComboSelections] = useState<Record<string, ComboOption>>({});
   const [variantSelections, setVariantSelections] = useState<Record<string, VariantOption>>({});
   const [selectedIngredients, setSelectedIngredients] = useState<Set<string>>(new Set());
 
-  // INICIALIZACIÓN AUTOMÁTICA
   useEffect(() => {
-    // 1. Cargar defaults de Combos
+    // Resetear estados al cambiar de producto
+    setComboSelections({});
+    setVariantSelections({});
+    setSelectedIngredients(new Set());
+
+    // 1. Inicializar Combos
     if (product.behavior === 'COMBO_PACK' && product.comboConfig) {
       const initial: Record<string, ComboOption> = {};
-      product.comboConfig.slots.forEach(slot => {
-        const defaultOpt = slot.options.find(o => o.id === slot.defaultOptionId) || slot.options[0];
+      product.comboConfig.slots.forEach((slot) => {
+        const defaultOpt = slot.options.find((o) => o.id === slot.defaultOptionId) || slot.options[0];
         if (defaultOpt) initial[slot.id] = defaultOpt;
       });
       setComboSelections(initial);
     }
 
-    // 2. Cargar ingredientes base de Pizzas
+    // 2. Inicializar Ingredientes
     if (product.behavior === 'CUSTOM_BUILDER' && product.builderConfig) {
       const defaultIds = product.builderConfig.ingredients
-        .filter(i => i.isDefault)
-        .map(i => i.id);
+        .filter((i) => i.isDefault)
+        .map((i) => i.id);
       setSelectedIngredients(new Set(defaultIds));
     }
     
-    // 3. Preseleccionar primer sabor (Frozen)
+    // 3. Inicializar Variantes (Frozens)
     if (product.behavior === 'SIMPLE_VARIANT' && product.variantConfig) {
         const initialVars: Record<string, VariantOption> = {};
-        product.variantConfig.groups.forEach(group => {
-            initialVars[group.id] = group.options[0];
+        product.variantConfig.groups.forEach((group) => {
+            if (group.options.length > 0) {
+                initialVars[group.id] = group.options[0];
+            }
         });
         setVariantSelections(initialVars);
     }
   }, [product]);
 
-  // CÁLCULO DE PRECIO INTELIGENTE
   const totalPrice = useMemo(() => {
     let total = product.price;
 
-    // Lógica Combo: Precio Base + Diferencia (Si es mayor)
+    // Lógica Combo
     if (product.behavior === 'COMBO_PACK' && product.comboConfig) {
-      product.comboConfig.slots.forEach(slot => {
+      product.comboConfig.slots.forEach((slot) => {
         const selected = comboSelections[slot.id];
-        const defaultOpt = slot.options.find(o => o.id === slot.defaultOptionId) || slot.options[0];
-        
+        const defaultOpt = slot.options.find((o) => o.id === slot.defaultOptionId) || slot.options[0];
         if (selected && defaultOpt) {
           const diff = Math.max(0, selected.price - defaultOpt.price);
           total += diff;
@@ -54,27 +57,30 @@ export const useProductSelection = (product: Product) => {
       });
     }
 
-    // Lógica Pizza: Precio Base + Extras
+    // Lógica Builder (Pizzas)
     if (product.behavior === 'CUSTOM_BUILDER' && product.builderConfig) {
-      product.builderConfig.ingredients.forEach(ing => {
+      product.builderConfig.ingredients.forEach((ing) => {
         const isSelected = selectedIngredients.has(ing.id);
-        // Si el ingrediente NO es default (es extra) y está seleccionado, se cobra
-        if (!ing.isDefault && isSelected) {
-          total += ing.price;
-        }
+        if (!ing.isDefault && isSelected) total += ing.price;
       });
+    }
+
+    // Lógica Variantes
+    if (product.behavior === 'SIMPLE_VARIANT') {
+        Object.values(variantSelections).forEach((opt) => {
+            if (opt.priceModifier) total += opt.priceModifier;
+        });
     }
 
     return total;
   }, [product, comboSelections, selectedIngredients, variantSelections]);
 
-  // ACCIONES
   const selectComboOption = (slotId: string, option: ComboOption) => {
-    setComboSelections(prev => ({ ...prev, [slotId]: option }));
+    setComboSelections((prev) => ({ ...prev, [slotId]: option }));
   };
 
   const toggleIngredient = (ingredientId: string) => {
-    setSelectedIngredients(prev => {
+    setSelectedIngredients((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(ingredientId)) newSet.delete(ingredientId);
       else newSet.add(ingredientId);
@@ -83,7 +89,7 @@ export const useProductSelection = (product: Product) => {
   };
 
   const selectVariant = (groupId: string, option: VariantOption) => {
-      setVariantSelections(prev => ({ ...prev, [groupId]: option }));
+      setVariantSelections((prev) => ({ ...prev, [groupId]: option }));
   };
 
   return {

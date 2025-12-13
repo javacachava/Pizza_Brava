@@ -1,56 +1,51 @@
-// Define los 3 comportamientos posibles del sistema
-export type ProductBehavior = 'SIMPLE_VARIANT' | 'COMBO_PACK' | 'CUSTOM_BUILDER';
+import type { MenuItem } from './MenuItem';
 
-// --- LOGICA 1: FROZENS (Variantes) ---
+// Enumeración de comportamientos
+export type ProductBehavior = 'SIMPLE_VARIANT' | 'COMBO_PACK' | 'CUSTOM_BUILDER' | 'STANDARD';
+
+// --- Interfaces para UI ---
 export interface VariantOption {
   id: string;
-  name: string; // "Fresa", "Mango"
+  name: string;
+  priceModifier?: number;
 }
 
 export interface VariantGroup {
   id: string;
-  name: string; // "Sabor"
+  name: string;
   options: VariantOption[];
 }
 
-// --- LOGICA 2: COMBOS (Slots Intercambiables) ---
 export interface ComboOption {
   id: string;
   name: string;
-  price: number; // Precio base del item individual
+  price: number;
   image?: string;
 }
 
 export interface ComboSlot {
   id: string;
-  title: string; // "Elige tu Bebida"
-  isSwappable: boolean; // ¿El recepcionista puede cambiar esto?
+  title: string;
+  isRequired: boolean;
+  isSwappable: boolean;
   options: ComboOption[];
-  defaultOptionId: string; // Lo que trae el combo por defecto
+  defaultOptionId: string;
 }
 
-// --- LOGICA 3: PIZZAS (Ingredientes / Builder) ---
 export interface Ingredient {
   id: string;
   name: string;
-  price: number; // Costo si es extra
-  isDefault: boolean; // true = Ya viene en la pizza (sin costo extra)
+  price: number;
+  isDefault: boolean;
   image?: string;
 }
 
-// --- PRODUCTO MAESTRO ---
-export interface Product {
-  id: string;
-  name: string;
-  description: string;
-  price: number; // Precio Base
-  image: string;
-  categoryId: string; // "bebidas", "pizzas", "combos"
-  
-  // El "Cerebro" que decide qué ventana abrir
+// --- EXTENSIÓN DEL MODELO MENUITEM ---
+// Usamos "ProductUI" para diferenciarlo del MenuItem de la DB
+export interface ProductUI extends MenuItem {
   behavior: ProductBehavior;
-
-  // Configuraciones específicas (Opcionales)
+  
+  // Configuraciones UI (Opcionales)
   variantConfig?: { groups: VariantGroup[] };
   comboConfig?: { slots: ComboSlot[] };
   builderConfig?: { ingredients: Ingredient[] };

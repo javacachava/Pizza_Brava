@@ -1,8 +1,7 @@
 import type { IComboRepository } from '../../repos/interfaces/IComboRepository';
 import type { IComboDefinitionRepository } from '../../repos/interfaces/IComboDefinitionRepository';
-import type { ComboDefinition} from '../../models/ComboDefinition';
+import type { ComboDefinition } from '../../models/ComboDefinition';
 import type { Combo } from '../../models/Combo';
-
 
 export class ComboService {
   private comboRepo: IComboRepository;
@@ -37,8 +36,8 @@ export class ComboService {
       }))
     );
 
-    const totalItems = items.length;
-    const price = def.basePrice ?? 0;
+    // CORRECCIÓN: Usar 'price' en lugar de 'basePrice'
+    const price = def.price ?? 0;
 
     return {
       id: crypto.randomUUID(),
@@ -49,4 +48,3 @@ export class ComboService {
     };
   }
 }
-

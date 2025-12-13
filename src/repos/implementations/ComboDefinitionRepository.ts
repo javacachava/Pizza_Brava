@@ -1,5 +1,5 @@
 import { BaseRepository } from '../BaseRepository';
-import type { ComboDefinition } from '../../models/Combo';
+import type { ComboDefinition } from '../../models/ComboDefinition';
 import type { IComboDefinitionRepository } from '../interfaces/IComboDefinitionRepository';
 
 export class ComboDefinitionRepository extends BaseRepository<ComboDefinition> implements IComboDefinitionRepository {

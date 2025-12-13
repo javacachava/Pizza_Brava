@@ -1,4 +1,5 @@
-import type { Combo, ComboDefinition } from '../models/Combo';
+import type { Combo } from '../models/Combo';
+import type { ComboDefinition } from '../models/ComboDefinition';
 import { generateSafeId } from './id';
 
 export function validateCombo(
@@ -10,6 +11,7 @@ export function validateCombo(
   (def.slots || []).forEach(slot => {
     const chosen = selections[slot.id] || [];
 
+    // CORRECCIÓN: TypeScript ahora reconoce 'required' y 'min' porque actualizamos el modelo
     if (slot.required === 'required' && chosen.length === 0) {
       errors.push(`El slot "${slot.name}" es obligatorio.`);
     }
@@ -32,7 +34,8 @@ export function generateComboInstance(
     id: generateSafeId(),
     comboDefinitionId: def.id,
     name: def.name,
-    price: def.basePrice ?? 0,
+    // CORRECCIÓN: 'price' en lugar de 'basePrice'
+    price: def.price ?? 0, 
     items: Object.entries(selections).flatMap(([slotId, productIds]) =>
       productIds.map(pid => ({
         productId: pid,
