@@ -4,6 +4,8 @@ import type { IMenuRepository } from '../repos/interfaces/IMenuRepository';
 import type { ICategoryRepository } from '../repos/interfaces/ICategoryRepository';
 import type { MenuItem } from '../models/MenuItem';
 import type { Category } from '../models/Category';
+import type { ComboDefinition } from '../models/ComboDefinition';
+import type { Flavor } from '../models/Flavor';
 
 interface MenuProviderProps {
   menuRepo: IMenuRepository;
@@ -12,8 +14,11 @@ interface MenuProviderProps {
 }
 
 interface MenuContextState {
-  items: MenuItem[];
+  items: MenuItem[]; // Legacy support if needed, or map 'products' to 'items'
+  products: MenuItem[]; // New name
   categories: Category[];
+  combos: ComboDefinition[]; // New property
+  flavors: Flavor[]; // New property
   loading: boolean;
   refresh: () => Promise<void>;
 }
@@ -21,8 +26,13 @@ interface MenuContextState {
 const MenuContext = createContext<MenuContextState | null>(null);
 
 export const MenuProvider = ({ menuRepo, categoryRepo, children }: MenuProviderProps) => {
-  const menuState = useMenu(menuRepo, categoryRepo);
-  return <MenuContext.Provider value={menuState}>{children}</MenuContext.Provider>;
+  const menuState = useMenu();
+  // Adapter if useMenu returns 'products' but context expects both/either
+  const value = {
+      ...menuState,
+      items: menuState.products // Alias implicit from previous usage
+  };
+  return <MenuContext.Provider value={value}>{children}</MenuContext.Provider>;
 };
 
 export const useMenuContext = () => {
