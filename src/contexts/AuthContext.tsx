@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from '../models/User';
 import { container } from '../models/di/container';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth as firebaseAuth } from '../services/firebase';
+import { supabase } from '../services/supabase';
 
 interface AuthContextValue {
   user: User | null;
@@ -17,78 +16,74 @@ const AuthContext = createContext<AuthContextValue>({} as any);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authService = container.authService;
   const [user, setUser] = useState<User | null>(null);
-  
-  // Estado de carga inicial
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('Iniciando sistema...');
 
   useEffect(() => {
     let isMounted = true;
-    
-    // Escuchamos cambios en la autenticación
-    const unsubscribe = onAuthStateChanged(firebaseAuth, async (currentUser) => {
-      if (!isMounted) return;
 
+    // Función para cargar perfil
+    const loadProfile = async (uid: string, email?: string) => {
+      if (email) setStatusMessage(`Verificando usuario (${email})...`);
       try {
-        if (currentUser) {
-          setStatusMessage(`Verificando usuario (${currentUser.email})...`);
-          
-          try {
-            // Intentamos obtener el perfil extendido
-            const profile = await authService.getUserById(currentUser.uid);
-            
-            if (isMounted) {
-              if (profile && profile.isActive) {
-                setUser(profile);
-              } else {
-                console.warn("Usuario sin perfil válido o inactivo.");
-                await authService.logout();
-                setUser(null);
-              }
-            }
-          } catch (profileError: any) {
-            console.error("[Auth] Error al cargar perfil:", profileError);
-            // Si falla la carga del perfil, cerramos sesión para evitar el limbo
+        const profile = await authService.getUserById(uid);
+        if (isMounted) {
+          if (profile && profile.isActive) {
+            setUser(profile);
+          } else {
+            console.warn("Usuario sin perfil o inactivo.");
             await authService.logout();
             setUser(null);
           }
-        } else {
-          // No hay usuario logueado
-          setUser(null);
         }
-      } catch (globalError) {
-        console.error("[Auth] Error general:", globalError);
+      } catch (err) {
+        console.error("Error cargando perfil", err);
         setUser(null);
       } finally {
-        // IMPORTANTE: Esto asegura que el loading SIEMPRE se quite
         if (isMounted) {
             setLoading(false);
             setStatusMessage('');
         }
       }
+    };
+
+    // 1. Verificar sesión actual al cargar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadProfile(session.user.id, session.user.email);
+      } else {
+        setLoading(false);
+      }
+    });
+
+    // 2. Escuchar cambios (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setLoading(true);
+        loadProfile(session.user.id, session.user.email);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setLoading(false);
+      }
     });
 
     return () => {
       isMounted = false;
-      unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
   const login = async (email: string, pass: string) => {
-    // No activamos loading global aquí, dejamos que el formulario lo maneje
+    // El loading lo maneja el listener onAuthStateChange o el form local
     const logged = await authService.login(email, pass);
     setUser(logged);
   };
 
   const logout = async () => {
-    try {
-      await authService.logout();
-    } finally {
-      setUser(null);
-    }
+    await authService.logout();
+    setUser(null);
   };
 
-  // Pantalla de carga (solo al inicio)
   if (loading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 p-4">

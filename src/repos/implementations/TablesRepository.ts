@@ -1,6 +1,6 @@
-import { BaseRepository } from '../BaseRepository';
-import type { Table } from '../../models/Table';
-import type { ITableRepository } from '../interfaces/ITableRepository';
+import { BaseRepository } from "../BaseRepository";
+import type { Table } from "../../models";
+import type { ITableRepository } from "../interfaces/ITableRepository";
 
 export class TablesRepository extends BaseRepository<Table> implements ITableRepository {
   constructor() { super('tables'); }

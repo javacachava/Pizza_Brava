@@ -1,5 +1,4 @@
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '../firebase'; 
+import { supabase } from '../supabase';
 import type { IUserRepository } from '../../repos/interfaces/IUserRepository';
 import type { User } from '../../models/User';
 
@@ -11,22 +10,29 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<User> {
-    // 1. Autenticar contra Firebase Auth (Nube)
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const uid = userCredential.user.uid;
+    // 1. Autenticar contra Supabase Auth
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    // 2. Buscar el perfil en Firestore usando el UID
+    if (error) throw error;
+    if (!data.user) throw new Error('No se pudo obtener el usuario.');
+
+    const uid = data.user.id;
+
+    // 2. Buscar el perfil en la tabla 'public.users'
+    // Nota: Como ya actualizamos el ID en la BD con el script SQL anterior, esto funcionará.
     const user = await this.users.getById(uid);
 
     if (!user) {
-      // Si entra a Firebase pero no tiene doc en Firestore
-      await signOut(auth); 
+      await this.logout();
       throw new Error('Usuario sin perfil asignado en el sistema.');
     }
 
-    // 3. Validar que esté activo en el sistema
+    // 3. Validar estado
     if (user.isActive === false) {
-      await signOut(auth);
+      await this.logout();
       throw new Error('Cuenta desactivada por administración.');
     }
 
@@ -34,10 +40,17 @@ export class AuthService {
   }
 
   async logout(): Promise<void> {
-    await signOut(auth);
+    await supabase.auth.signOut();
   }
 
   async getUserById(id: string): Promise<User | null> {
     return this.users.getById(id);
+  }
+  
+  // Método auxiliar para obtener el usuario actual de la sesión
+  async getCurrentUser(): Promise<User | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    return this.getUserById(user.id);
   }
 }
