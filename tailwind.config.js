@@ -7,13 +7,30 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Extendemos la paleta si es necesario, pero usaremos las clases nativas de Tailwind
         primary: '#ff6b00',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
-      }
+      },
+      animation: {
+        shine: 'shine 1s',
+        slideUp: 'slideUp 0.3s ease-out forwards',
+        fadeIn: 'fadeIn 0.2s ease-out forwards',
+      },
+      keyframes: {
+        shine: {
+          '100%': { left: '125%' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(20px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+      },
     },
   },
   plugins: [],
-}
+};
