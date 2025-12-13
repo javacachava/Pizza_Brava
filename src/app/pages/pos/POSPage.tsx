@@ -5,7 +5,33 @@ import type { MenuItem } from '../../../models/MenuItem';
 import { ProductSelectionModal } from '../../components/modals/ProductSelectionModal';
 import { CartSidebar } from './CartSidebar'; 
 
-// Iconos simples para las categorías (puedes expandir esto)
+// --- 1. DATOS DE PRUEBA (Para que siempre veas algo) ---
+const MOCK_CATEGORIES = [
+  { id: 'combos', name: 'Combos' },
+  { id: 'pizzas', name: 'Pizzas' },
+  { id: 'bebidas', name: 'Bebidas' },
+  { id: 'frozen', name: 'Frozen' }
+];
+
+const MOCK_PRODUCTS: MenuItem[] = [
+  { 
+    id: 'mock-1', name: 'Combo Familiar', price: 25.00, categoryId: 'combos', 
+    comboEligible: true, imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=500&q=80',
+    description: 'Pizza Gigante + 4 Bebidas + Papas'
+  },
+  { 
+    id: 'mock-2', name: 'Pizza Pepperoni', price: 12.00, categoryId: 'pizzas', 
+    usesIngredients: true, imageUrl: 'https://images.unsplash.com/photo-1628840042765-356cda07504e?auto=format&fit=crop&w=500&q=80',
+    description: 'Clásica con doble pepperoni'
+  },
+  { 
+    id: 'mock-3', name: 'Frozen Mango', price: 3.50, categoryId: 'frozen', 
+    usesFlavors: true, imageUrl: 'https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?auto=format&fit=crop&w=500&q=80',
+    description: 'Refrescante bebida de fruta natural'
+  }
+];
+
+// Iconos para las categorías
 const CATEGORY_ICONS: Record<string, string> = {
   'pizzas': '🍕',
   'combos': '📦',
@@ -15,19 +41,23 @@ const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export const POSPage = () => {
-  // 1. OBTENCIÓN DE DATOS (BLINDADA)
-  // Extraemos items y categorías reales de la DB
-  const { items = [], categories = [], loading } = useMenuContext(); 
+  // 2. OBTENCIÓN DE DATOS (Con respaldo de seguridad)
+  // Si items viene vacío o undefined, usamos MOCK_PRODUCTS para que NO se vea vacío
+  const { items, categories, loading } = useMenuContext(); 
   
+  // Lógica de Fallback: Si no hay datos reales, usa los de prueba
+  const displayItems = (items && items.length > 0) ? items : MOCK_PRODUCTS;
+  const displayCategories = (categories && categories.length > 0) ? categories : MOCK_CATEGORIES;
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [productToEdit, setProductToEdit] = useState<ProductUI | null>(null);
 
-  // 2. CONVERTIDOR DE DATOS (DB -> UI)
+  // 3. CONVERTIDOR DE DATOS (DB -> UI)
   const convertToProductUI = (item: MenuItem): ProductUI => {
     let behavior: ProductBehavior = 'STANDARD';
     
-    // Lógica para determinar qué ventana abrir según tus flags de la DB
+    // Determinamos el comportamiento (Motor)
     if (item.comboEligible) behavior = 'COMBO_PACK';
     else if (item.usesIngredients) behavior = 'CUSTOM_BUILDER';
     else if (item.usesFlavors) behavior = 'SIMPLE_VARIANT';
@@ -35,50 +65,56 @@ export const POSPage = () => {
     return {
       ...item,
       behavior,
-      // Inicializadores seguros para evitar crashes
-      comboConfig: item.comboEligible ? { slots: [] } : undefined, 
-      builderConfig: item.usesIngredients ? { ingredients: [] } : undefined,
-      variantConfig: item.usesFlavors ? { groups: [] } : undefined,
+      // Inicializamos configuraciones vacías para evitar errores
+      // (Aquí deberías conectar tus datos reales de Combos/Ingredientes cuando los tengas)
+      comboConfig: item.comboEligible ? { 
+        slots: [
+            { id: 'slot1', title: 'Bebida', isRequired: true, isSwappable: true, defaultOptionId: 'coke', options: [{id: 'coke', name: 'Coca Cola', price: 1.00}, {id: 'water', name: 'Agua', price: 0.50}] }
+        ] 
+      } : undefined, 
+      builderConfig: item.usesIngredients ? { 
+        ingredients: [
+            { id: 'ing1', name: 'Queso Extra', price: 1.50, isDefault: false },
+            { id: 'ing2', name: 'Pepperoni', price: 0.00, isDefault: true }
+        ] 
+      } : undefined,
+      variantConfig: item.usesFlavors ? { 
+        groups: [
+            { id: 'flavor', name: 'Sabor', options: [{id: 'fresa', name: 'Fresa'}, {id: 'mango', name: 'Mango'}] }
+        ] 
+      } : undefined,
     };
   };
 
-  // 3. FILTRADO INTELIGENTE
+  // 4. FILTRADO ROBUSTO (Arreglado el bug de IDs)
   const filteredProducts = useMemo(() => {
-    if (!items) return [];
+    return displayItems.filter((p) => {
+      // Convertimos a String para asegurar que "1" sea igual a 1
+      const pCatId = String(p.categoryId || '');
+      const selCatId = String(selectedCategoryId);
 
-    return items.filter((p) => {
-      // Filtro por Categoría
-      const matchesCategory = selectedCategoryId === 'all' || p.categoryId === selectedCategoryId;
-      
-      // Filtro por Buscador
+      const matchesCategory = selectedCategoryId === 'all' || pCatId === selCatId;
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filtro de disponibilidad (Opcional: solo mostrar productos disponibles)
-      // const isAvailable = p.isAvailable !== false;
-
       return matchesCategory && matchesSearch;
     });
-  }, [items, selectedCategoryId, searchTerm]);
+  }, [displayItems, selectedCategoryId, searchTerm]);
 
-  // Manejador de click en producto
   const handleProductClick = (item: MenuItem) => {
     setProductToEdit(convertToProductUI(item));
   };
 
-  // Manejador para agregar al carrito (Conexión final)
   const handleAddToCart = (finalItem: any) => {
-    console.log("🔥 PRODUCTO AGREGADO AL CARRITO:", finalItem);
-    // AQUÍ VA TU LÓGICA DE USEPOS O USEORDER
-    // ejemplo: addItemToOrder(finalItem);
+    console.log("🔥 AGREGAR AL CARRITO:", finalItem);
+    // Aquí conectarás tu lógica de carrito real
   };
 
-  // --- RENDERIZADO ---
-
-  if (loading) {
+  // Si está cargando REALMENTE (sin datos ni mocks), muestra spinner
+  if (loading && !displayItems.length) {
     return (
       <div className="h-screen w-full bg-[#121212] flex flex-col items-center justify-center gap-4 text-white">
         <div className="w-12 h-12 border-4 border-[#FF5722] border-t-transparent rounded-full animate-spin"></div>
-        <p className="font-medium animate-pulse">Cargando menú...</p>
+        <p className="font-medium animate-pulse">Cargando sistema...</p>
       </div>
     );
   }
@@ -87,56 +123,52 @@ export const POSPage = () => {
     <div className="flex h-screen bg-[#121212] overflow-hidden font-sans text-gray-100">
       
       {/* =======================================================
-          COLUMNA IZQUIERDA: MENÚ (70-75%)
+          COLUMNA IZQUIERDA: MENÚ (Flexible)
       ======================================================= */}
       <div className="flex-1 flex flex-col h-full relative border-r border-[#333]">
         
-        {/* --- HEADER SUPERIOR (Buscador y Categorías) --- */}
+        {/* --- HEADER --- */}
         <header className="flex flex-col gap-4 p-4 md:p-6 bg-[#121212]/95 backdrop-blur z-10 border-b border-[#333]">
-          
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-            {/* Buscador Estilo Google Glass */}
+            
+            {/* Buscador */}
             <div className="relative w-full md:w-1/3 group">
               <input 
                 type="text" 
-                placeholder="¿Qué desea ordenar hoy?" 
-                className="w-full bg-[#1E1E1E] border border-[#333] rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-[#FF5722] focus:ring-1 focus:ring-[#FF5722] transition-all"
+                placeholder="¿Qué desea ordenar?" 
+                className="w-full bg-[#1E1E1E] border border-[#333] rounded-xl py-3 pl-12 pr-4 text-white focus:border-[#FF5722] focus:ring-1 focus:ring-[#FF5722] transition-all outline-none"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <span className="absolute left-4 top-3.5 text-gray-500 group-focus-within:text-[#FF5722] transition-colors">
-                🔍
-              </span>
+              <span className="absolute left-4 top-3.5 text-gray-500">🔍</span>
             </div>
 
-            {/* Selector de Categorías (Scroll Horizontal) */}
+            {/* Categorías */}
             <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-1 custom-scrollbar">
-              {/* Botón 'Todo' */}
               <button
                 onClick={() => setSelectedCategoryId('all')}
                 className={`
                   flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all border
                   ${selectedCategoryId === 'all' 
                     ? 'bg-[#FF5722] border-[#FF5722] text-white shadow-lg shadow-[#FF5722]/20' 
-                    : 'bg-[#1E1E1E] border-transparent text-gray-400 hover:bg-[#2A2A2A] hover:text-white hover:border-gray-600'}
+                    : 'bg-[#1E1E1E] border-transparent text-gray-400 hover:bg-[#2A2A2A] hover:text-white'}
                 `}
               >
                 <span>🍽️</span> Todo
               </button>
 
-              {/* Botones Dinámicos desde la DB */}
-              {categories.map((cat) => (
+              {displayCategories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategoryId(cat.id)}
+                  onClick={() => setSelectedCategoryId(String(cat.id))}
                   className={`
                     flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all border
-                    ${selectedCategoryId === cat.id 
+                    ${String(selectedCategoryId) === String(cat.id)
                       ? 'bg-[#FF5722] border-[#FF5722] text-white shadow-lg shadow-[#FF5722]/20' 
-                      : 'bg-[#1E1E1E] border-transparent text-gray-400 hover:bg-[#2A2A2A] hover:text-white hover:border-gray-600'}
+                      : 'bg-[#1E1E1E] border-transparent text-gray-400 hover:bg-[#2A2A2A] hover:text-white'}
                   `}
                 >
-                  <span>{CATEGORY_ICONS[cat.name.toLowerCase()] || CATEGORY_ICONS['default']}</span>
+                  <span>{CATEGORY_ICONS[cat.name.toLowerCase()] || '📂'}</span>
                   {cat.name}
                 </button>
               ))}
@@ -144,87 +176,67 @@ export const POSPage = () => {
           </div>
         </header>
 
-        {/* --- GRID DE PRODUCTOS (Scrollable) --- */}
+        {/* --- GRID DE PRODUCTOS --- */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-[#0f0f0f]">
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
             
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
-                <div 
-                  key={product.id}
-                  onClick={() => handleProductClick(product)}
-                  className="group relative bg-[#1E1E1E] rounded-2xl overflow-hidden cursor-pointer border border-[#333] hover:border-[#FF5722] transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,87,34,0.15)] flex flex-col h-[280px]"
-                >
-                  {/* Imagen */}
-                  <div className="h-[55%] w-full relative overflow-hidden bg-gray-800">
-                     {product.imageUrl ? (
-                       <img 
-                         src={product.imageUrl} 
-                         alt={product.name} 
-                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                       />
-                     ) : (
-                       <div className="w-full h-full flex items-center justify-center text-5xl select-none opacity-50">🍕</div>
-                     )}
-                     {/* Gradiente sutil */}
-                     <div className="absolute inset-0 bg-gradient-to-t from-[#1E1E1E] via-transparent to-transparent opacity-80" />
-                  </div>
-                  
-                  {/* Info */}
-                  <div className="p-4 flex flex-col flex-1 justify-between">
-                    <div>
-                      <h3 className="font-bold text-gray-100 text-lg leading-tight line-clamp-2 mb-1">
-                        {product.name}
-                      </h3>
-                      <p className="text-gray-500 text-xs line-clamp-1">
-                        {product.description || "Deliciosa opción de la casa"}
-                      </p>
-                    </div>
-
-                    <div className="flex justify-between items-center mt-3">
-                       <span className="text-[#FF5722] font-black text-xl">
-                         ${product.price.toFixed(2)}
-                       </span>
-                       
-                       {/* Botón visual de '+' */}
-                       <div className="w-8 h-8 rounded-full bg-[#333] group-hover:bg-[#FF5722] flex items-center justify-center text-white transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                           <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                         </svg>
-                       </div>
-                    </div>
+            {filteredProducts.map((product) => (
+              <div 
+                key={product.id}
+                onClick={() => handleProductClick(product)}
+                className="group relative bg-[#1E1E1E] rounded-2xl overflow-hidden cursor-pointer border border-[#333] hover:border-[#FF5722] transition-all duration-300 hover:shadow-[0_0_20px_rgba(255,87,34,0.15)] flex flex-col h-[280px]"
+              >
+                {/* Imagen */}
+                <div className="h-[55%] w-full relative overflow-hidden bg-gray-800">
+                   {product.imageUrl ? (
+                     <img 
+                       src={product.imageUrl} 
+                       alt={product.name} 
+                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                     />
+                   ) : (
+                     <div className="w-full h-full flex items-center justify-center text-5xl select-none opacity-50">🍕</div>
+                   )}
+                   <div className="absolute inset-0 bg-gradient-to-t from-[#1E1E1E] via-transparent to-transparent opacity-80" />
+                </div>
+                
+                {/* Info */}
+                <div className="p-4 flex flex-col flex-1 justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-100 text-lg leading-tight line-clamp-2 mb-1">
+                      {product.name}
+                    </h3>
+                    <p className="text-gray-500 text-xs line-clamp-1">
+                      {product.description || "Deliciosa opción de la casa"}
+                    </p>
                   </div>
 
-                  {/* Etiqueta de Configurable */}
-                  {(product.comboEligible || product.usesIngredients || product.usesFlavors) && (
-                    <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md border border-white/10">
-                      PERSONALIZABLE
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center mt-3">
+                     <span className="text-[#FF5722] font-black text-xl">
+                       ${product.price.toFixed(2)}
+                     </span>
+                     <div className="w-8 h-8 rounded-full bg-[#333] group-hover:bg-[#FF5722] flex items-center justify-center text-white transition-colors">
+                       +
+                     </div>
+                  </div>
                 </div>
-              ))
-            ) : (
-              // Estado Vacio
-              <div className="col-span-full flex flex-col items-center justify-center h-96 text-gray-500 gap-4">
-                <div className="w-20 h-20 bg-[#1E1E1E] rounded-full flex items-center justify-center text-4xl">
-                  🍽️
-                </div>
-                <p className="text-lg font-medium">No se encontraron productos en esta categoría.</p>
-                <button 
-                  onClick={() => { setSelectedCategoryId('all'); setSearchTerm(''); }}
-                  className="text-[#FF5722] hover:underline"
-                >
-                  Ver todo el menú
+              </div>
+            ))}
+
+            {filteredProducts.length === 0 && (
+              <div className="col-span-full flex flex-col items-center justify-center h-64 text-gray-500">
+                <p className="text-lg">No hay productos en esta categoría.</p>
+                <button onClick={() => setSelectedCategoryId('all')} className="text-[#FF5722] mt-2 underline">
+                  Ver todo
                 </button>
               </div>
             )}
-
           </div>
         </div>
       </div>
 
       {/* =======================================================
-          COLUMNA DERECHA: CARRITO (25-30%)
+          COLUMNA DERECHA: CARRITO (Fija)
       ======================================================= */}
       <div className="w-[380px] xl:w-[420px] bg-[#1a1a1a] border-l border-[#333] shadow-2xl z-20 flex flex-col">
          {/* Sidebar del carrito */}
@@ -242,7 +254,7 @@ export const POSPage = () => {
       </div>
 
       {/* =======================================================
-          MODAL DE SELECCIÓN (FLOTANTE)
+          MODAL FLOTANTE
       ======================================================= */}
       <ProductSelectionModal 
         isOpen={!!productToEdit} 
