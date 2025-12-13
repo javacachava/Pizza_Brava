@@ -1,87 +1,132 @@
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  onSnapshot,
-  type DocumentData,
-  CollectionReference
-} from 'firebase/firestore';
+// src/repos/BaseRepository.ts
+import { supabase } from '../services/supabase';
+import type { PostgrestError } from '@supabase/supabase-js';
 
-import { db } from '../services/firebase';
-
+// Asumimos que T tiene un id opcional, ya que Postgres lo generará
 export abstract class BaseRepository<T extends { id?: string }> {
-  protected collRef: CollectionReference<DocumentData>;
-  protected collectionPath: string;
+  protected collectionPath: string; // En SQL esto es el nombre de la "Tabla"
 
   constructor(collectionPath: string) {
     this.collectionPath = collectionPath;
-    this.collRef = collection(db, collectionPath);
   }
 
+  // --- CREATE ---
   async create(entity: T): Promise<T> {
-    const data = { ...entity };
-
+    // Si ya tiene ID, intentamos un "upsert" (insertar o actualizar)
     if (entity.id) {
-      const ref = doc(this.collRef, entity.id);
-      await setDoc(ref, data, { merge: true });
-      return { ...(data as any) } as T;
+      const { data, error } = await supabase
+        .from(this.collectionPath)
+        .upsert(entity)
+        .select()
+        .single();
+      
+      if (error) throw new Error(error.message);
+      return data as T;
     }
 
-    const res = await addDoc(this.collRef, data);
-    return { ...(data as any), id: res.id } as T;
+    // Si es nuevo, insertamos
+    // NOTA: Asegúrate de limpiar campos undefined antes de enviar a Postgres
+    const { data, error } = await supabase
+      .from(this.collectionPath)
+      .insert(entity)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data as T;
   }
 
-  async getById(id: string): Promise<T | null> {
-    const ref = doc(this.collRef, id);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return null;
-    return { ...(snap.data() as T), id: snap.id };
-  }
-
-  async update(id: string, partial: Partial<T>): Promise<void> {
-    const ref = doc(this.collRef, id);
-    await updateDoc(ref, partial as any);
-  }
-
-  async delete(id: string): Promise<void> {
-    const ref = doc(this.collRef, id);
-    await deleteDoc(ref);
-  }
-
+  // --- READ (Get All) ---
   async getAll(limitCount?: number): Promise<T[]> {
-    let q = query(this.collRef);
+    let query = supabase.from(this.collectionPath).select('*');
+    
     if (limitCount && limitCount > 0) {
-      q = query(this.collRef, limit(limitCount));
+      query = query.limit(limitCount);
     }
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...(d.data() as T), id: d.id }));
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data as T[];
   }
 
-  async getAllOrdered(orderField = 'order', direction: 'asc' | 'desc' = 'asc'): Promise<T[]> {
-    const q = query(this.collRef, orderBy(orderField, direction));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...(d.data() as T), id: d.id }));
+  // --- READ (Get By ID) ---
+  async getById(id: string): Promise<T | null> {
+    const { data, error } = await supabase
+      .from(this.collectionPath)
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+        // Código PGRST116 significa "No rows found" en Supabase/Postgres
+        if (error.code === 'PGRST116') return null; 
+        throw new Error(error.message);
+    }
+    return data as T;
   }
 
+  // --- UPDATE ---
+  async update(id: string, partial: Partial<T>): Promise<void> {
+    const { error } = await supabase
+      .from(this.collectionPath)
+      .update(partial)
+      .eq('id', id);
+
+    if (error) throw new Error(error.message);
+  }
+
+  // --- DELETE ---
+  async delete(id: string): Promise<void> {
+    const { error } = await supabase
+      .from(this.collectionPath)
+      .delete()
+      .eq('id', id);
+
+    if (error) throw new Error(error.message);
+  }
+
+  // --- UTILIDADES ---
+  
   async getByField(field: string, value: any): Promise<T[]> {
-    const q = query(this.collRef, where(field, '==', value));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ ...(d.data() as T), id: d.id }));
+    const { data, error } = await supabase
+      .from(this.collectionPath)
+      .select('*')
+      .eq(field, value);
+
+    if (error) throw new Error(error.message);
+    return data as T[];
   }
 
+  // Postgres devuelve los datos ordenados si se lo pides
+  async getAllOrdered(orderField = 'created_at', direction: 'asc' | 'desc' = 'asc'): Promise<T[]> {
+    const { data, error } = await supabase
+      .from(this.collectionPath)
+      .select('*')
+      .order(orderField, { ascending: direction === 'asc' });
+
+    if (error) throw new Error(error.message);
+    return data as T[];
+  }
+
+  // --- REALTIME (Snapshot) ---
+  // Supabase maneja esto diferente a Firestore, necesitas suscribirte
   onSnapshot(callback: (items: T[]) => void) {
-    return onSnapshot(this.collRef, snap => {
-      const items = snap.docs.map(d => ({ ...(d.data() as T), id: d.id }));
-      callback(items);
-    });
+    // 1. Carga inicial
+    this.getAll().then(items => callback(items));
+
+    // 2. Suscripción a cambios
+    const channel = supabase
+      .channel(`public:${this.collectionPath}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: this.collectionPath }, payload => {
+        // Cuando algo cambia, recargamos todo (estrategia simple)
+        // O podrías actualizar el estado localmente para ser más eficiente
+        this.getAll().then(items => callback(items));
+      })
+      .subscribe();
+
+    // Retornamos una función para desuscribirse (limpieza)
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }
 }
