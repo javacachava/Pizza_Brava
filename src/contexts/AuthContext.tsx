@@ -16,28 +16,37 @@ const AuthContext = createContext<AuthContextValue>({} as any);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const authService = container.authService;
   const [user, setUser] = useState<User | null>(null);
+  
+  // Iniciamos en true para verificar la sesión antes de mostrar nada
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('Iniciando sistema...');
 
   useEffect(() => {
     let isMounted = true;
 
-    // Función para cargar perfil
-    const loadProfile = async (uid: string, email?: string) => {
-      if (email) setStatusMessage(`Verificando usuario (${email})...`);
+    const loadProfile = async (sessionUser: any) => {
       try {
-        const profile = await authService.getUserById(uid);
-        if (isMounted) {
-          if (profile && profile.isActive) {
-            setUser(profile);
-          } else {
-            console.warn("Usuario sin perfil o inactivo.");
-            await authService.logout();
-            setUser(null);
+        if (sessionUser?.email) {
+          setStatusMessage(`Verificando usuario (${sessionUser.email})...`);
+          
+          // CORRECCIÓN: Usamos el email para recuperar el perfil
+          // Esto es a prueba de fallos si los IDs no están sincronizados
+          const profile = await authService.getUserByEmail(sessionUser.email);
+          
+          if (isMounted) {
+            if (profile && profile.isActive) {
+              setUser(profile);
+            } else {
+              console.warn("Usuario sin perfil válido o inactivo.");
+              // No forzamos logout automático aquí para evitar bucles infinitos si hay error de red
+              setUser(null);
+            }
           }
+        } else {
+          setUser(null);
         }
       } catch (err) {
-        console.error("Error cargando perfil", err);
+        console.error("Error cargando perfil:", err);
         setUser(null);
       } finally {
         if (isMounted) {
@@ -47,20 +56,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // 1. Verificar sesión actual al cargar
+    // 1. Verificar sesión actual al cargar la app
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        loadProfile(session.user.id, session.user.email);
+        loadProfile(session.user);
       } else {
         setLoading(false);
       }
     });
 
-    // 2. Escuchar cambios (Login/Logout)
+    // 2. Escuchar cambios en tiempo real (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setLoading(true);
-        loadProfile(session.user.id, session.user.email);
+        loadProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setLoading(false);
@@ -74,7 +83,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const login = async (email: string, pass: string) => {
-    // El loading lo maneja el listener onAuthStateChange o el form local
     const logged = await authService.login(email, pass);
     setUser(logged);
   };

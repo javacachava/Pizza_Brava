@@ -17,13 +17,11 @@ export class AuthService {
     });
 
     if (error) throw error;
-    if (!data.user) throw new Error('No se pudo obtener el usuario.');
+    if (!data.user || !data.user.email) throw new Error('No se pudo obtener el usuario.');
 
-    const uid = data.user.id;
-
-    // 2. Buscar el perfil en la tabla 'public.users'
-    // Nota: Como ya actualizamos el ID en la BD con el script SQL anterior, esto funcionará.
-    const user = await this.users.getById(uid);
+    // 2. CORRECCIÓN: Buscar por EMAIL, no por ID.
+    // Esto conecta tu usuario 'user_admin' con la cuenta de Auth, aunque los IDs sean diferentes.
+    const user = await this.users.getByEmail(data.user.email);
 
     if (!user) {
       await this.logout();
@@ -43,14 +41,12 @@ export class AuthService {
     await supabase.auth.signOut();
   }
 
+  // Método auxiliar para buscar por email directamente
+  async getUserByEmail(email: string): Promise<User | null> {
+    return this.users.getByEmail(email);
+  }
+
   async getUserById(id: string): Promise<User | null> {
     return this.users.getById(id);
-  }
-  
-  // Método auxiliar para obtener el usuario actual de la sesión
-  async getCurrentUser(): Promise<User | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    return this.getUserById(user.id);
   }
 }
