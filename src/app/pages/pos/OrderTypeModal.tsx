@@ -1,132 +1,137 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/Button';
-import type { OrderType } from '../../../models/Order';
 import type { Table } from '../../../models/Table';
-
-interface OrderMeta {
-  tableId?: string;
-  tableName?: string;
-  customerName?: string;
-  phone?: string;
-  address?: string;
-}
+import confetti from 'canvas-confetti'; //
 
 interface Props {
-  isOpen: boolean; // Renombrado de 'open' a 'isOpen'
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (type: 'mesa' | 'llevar' | 'pedido', meta?: any) => void;
   isLoading?: boolean;
   tables: Table[];
-  onClose: () => void;
-  onConfirm: (type: OrderType, meta: OrderMeta) => void;
 }
 
-export const OrderTypeModal: React.FC<Props> = ({
-  isOpen,
-  isLoading = false,
-  tables,
-  onClose,
-  onConfirm
-}) => {
-  const [selectedType, setSelectedType] = useState<OrderType>('mesa');
-  
-  // Form State
-  const [tableId, setTableId] = useState('');
+export const OrderTypeModal: React.FC<Props> = ({ isOpen, onClose, onConfirm, isLoading, tables }) => {
+  // Use domain types internally if possible, or map them
+  const [selectedType, setSelectedType] = useState<'mesa' | 'llevar' | 'pedido' | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string>('');
   const [customerName, setCustomerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
 
-  // Reset al abrir
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedType('mesa');
-      setTableId('');
-      setCustomerName('');
-      setPhone('');
-      setAddress('');
-    }
-  }, [isOpen]);
-
-  const handleSubmit = () => {
-    const meta: OrderMeta = {};
-    
-    if (selectedType === 'mesa') {
-      const table = tables.find(t => t.id === tableId);
-      meta.tableId = tableId;
-      meta.tableName = table?.name || 'Mesa desconocida';
-    } else {
-      meta.customerName = customerName;
-      if (selectedType === 'pedido') { // Delivery
-        meta.phone = phone;
-        meta.address = address;
-      }
-    }
-
-    onConfirm(selectedType, meta);
+  // Reiniciar estado al cerrar
+  const handleClose = () => {
+    setSelectedType(null);
+    setSelectedTableId('');
+    setCustomerName('');
+    onClose();
   };
 
-  const isFormValid = () => {
-    if (selectedType === 'mesa') return !!tableId;
-    if (selectedType === 'llevar') return !!customerName.trim();
-    if (selectedType === 'pedido') return !!customerName.trim() && !!phone.trim() && !!address.trim();
-    return false;
+  const handleConfirm = () => {
+    if (!selectedType) return;
+    
+    // Validaciones
+    if (selectedType === 'mesa' && !selectedTableId) {
+      alert('Selecciona una mesa');
+      return;
+    }
+    if ((selectedType === 'llevar' || selectedType === 'pedido') && !customerName.trim()) {
+      alert('Ingresa el nombre del cliente');
+      return;
+    }
+
+    // Datos meta
+    const meta: any = {};
+    if (selectedType === 'mesa') meta.tableId = selectedTableId;
+    if (customerName) meta.customerName = customerName;
+
+    // --- EFECTO WOW: Confeti ---
+    // Lanzamos confeti desde el centro hacia arriba
+    const duration = 2000;
+    const end = Date.now() + duration;
+
+    // Colores corporativos (Naranja Pizza Brava)
+    const colors = ['#FF5722', '#FF9800', '#ffffff'];
+
+    (function frame() {
+      confetti({
+        particleCount: 5,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: colors
+      });
+      confetti({
+        particleCount: 5,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: colors
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    }());
+    // ---------------------------
+
+    onConfirm(selectedType, meta);
+    handleClose();
   };
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title="Confirmar Orden"
-      footer={
-        <div className="flex gap-3 justify-end w-full">
-          <Button variant="secondary" onClick={onClose} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={!isFormValid() || isLoading}
-            className={`${isFormValid() ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300'} text-white`}
-          >
-            {isLoading ? 'Procesando...' : 'Confirmar Orden'}
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-6 p-1">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Tipo de Orden">
+      <div className="space-y-6 p-2">
         
-        {/* Selector de Tipo (Tabs) */}
-        <div className="grid grid-cols-3 gap-2 bg-gray-100 p-1 rounded-lg">
-          {(['mesa', 'llevar', 'pedido'] as OrderType[]).map((type) => (
-            <button
-              key={type}
-              onClick={() => setSelectedType(type)}
-              className={`py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                selectedType === type
-                  ? 'bg-white text-orange-600 shadow-sm ring-1 ring-orange-100'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {type === 'mesa' && '🍽️ Mesa'}
-              {type === 'llevar' && '🛍️ Llevar'}
-              {type === 'pedido' && '🛵 Delivery'}
-            </button>
-          ))}
+        {/* Selección de Tipo con Tarjetas Grandes */}
+        <div className="grid grid-cols-3 gap-4">
+          <button
+            onClick={() => setSelectedType('mesa')}
+            className={`p-6 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
+              selectedType === 'mesa' ? 'border-[#FF5722] bg-[#FF5722]/10 text-[#FF5722]' : 'border-[#333] bg-[#1E1E1E] text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            <span className="text-4xl">🍽️</span>
+            <span className="font-bold text-sm">Comer Aquí</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedType('llevar')}
+            className={`p-6 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
+              selectedType === 'llevar' ? 'border-[#FF5722] bg-[#FF5722]/10 text-[#FF5722]' : 'border-[#333] bg-[#1E1E1E] text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            <span className="text-4xl">🛍️</span>
+            <span className="font-bold text-sm">Para Llevar</span>
+          </button>
+
+          <button
+            onClick={() => setSelectedType('pedido')}
+            className={`p-6 rounded-xl border-2 flex flex-col items-center gap-3 transition-all ${
+              selectedType === 'pedido' ? 'border-[#FF5722] bg-[#FF5722]/10 text-[#FF5722]' : 'border-[#333] bg-[#1E1E1E] text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            <span className="text-4xl">🛵</span>
+            <span className="font-bold text-sm">Delivery</span>
+          </button>
         </div>
 
-        {/* Campos Dinámicos */}
-        <div className="min-h-[150px]">
+        {/* Campos Dinámicos con Animación */}
+        <div className="min-h-[100px] transition-all duration-300">
           {selectedType === 'mesa' && (
-            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-              <label className="block text-sm font-medium text-gray-700">Seleccionar Mesa</label>
-              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+            <div className="space-y-2 animate-fadeIn">
+              <label className="text-gray-300 text-sm font-bold">Seleccionar Mesa:</label>
+              <div className="grid grid-cols-4 gap-2">
                 {tables.map(table => (
                   <button
                     key={table.id}
-                    onClick={() => setTableId(table.id)}
-                    disabled={!table.active} // Asumiendo propiedad 'active' o 'occupied'
-                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
-                      tableId === table.id 
-                        ? 'bg-orange-50 border-orange-500 text-orange-700' 
-                        : 'bg-white border-gray-200 hover:border-orange-300'
+                    onClick={() => setSelectedTableId(table.id)}
+                    disabled={table.state === 'occupied'} 
+                    className={`p-3 rounded-lg text-sm font-bold transition-colors ${
+                      selectedTableId === table.id 
+                        ? 'bg-[#FF5722] text-white' 
+                        : table.state === 'occupied'
+                          ? 'bg-red-900/30 text-red-500 border border-red-900 cursor-not-allowed'
+                          : 'bg-[#2A2A2A] text-gray-300 hover:bg-[#333]'
                     }`}
                   >
                     {table.name}
@@ -137,45 +142,32 @@ export const OrderTypeModal: React.FC<Props> = ({
           )}
 
           {(selectedType === 'llevar' || selectedType === 'pedido') && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Nombre del Cliente</label>
-                <input
-                  type="text"
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:ring-orange-500 outline-none"
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                  placeholder="Ej: Juan Pérez"
-                  autoFocus
-                />
-              </div>
-
-              {selectedType === 'pedido' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Teléfono</label>
-                    <input
-                      type="tel"
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:ring-orange-500 outline-none"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      placeholder="Ej: 7777-7777"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Dirección de Entrega</label>
-                    <textarea
-                      className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:ring-orange-500 outline-none"
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
-                      placeholder="Dirección completa y referencias"
-                      rows={2}
-                    />
-                  </div>
-                </>
-              )}
+            <div className="space-y-2 animate-fadeIn">
+              <label className="text-gray-300 text-sm font-bold">Nombre del Cliente:</label>
+              <input
+                type="text"
+                autoFocus
+                className="w-full bg-[#1E1E1E] border border-[#333] rounded-xl p-4 text-white focus:border-[#FF5722] focus:outline-none transition-colors"
+                placeholder="Ej. Juan Pérez"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+              />
             </div>
           )}
+        </div>
+
+        <div className="flex gap-3 pt-4 border-t border-[#333]">
+          <Button variant="secondary" onClick={handleClose} className="flex-1 py-4 bg-[#2A2A2A] hover:bg-[#333] text-white border-none">
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleConfirm} 
+            loading={isLoading} 
+            disabled={!selectedType}
+            className="flex-1 py-4 bg-[#FF5722] hover:bg-[#E64A19] text-white font-bold shadow-lg shadow-orange-900/20"
+          >
+            Confirmar Orden
+          </Button>
         </div>
       </div>
     </Modal>
